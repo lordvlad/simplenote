@@ -13,3 +13,5 @@ winner winner chicken dinner color scheme by b_wiebe: https://kuler.adobe.com/#t
 knockout.js
 
 dropbox.js
+
+sticky notes icon http://www.iconsdb.com/orange-icons/sticky-note-icon.html
