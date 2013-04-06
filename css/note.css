@@ -1,0 +1,72 @@
+/*
+ * https://kuler.adobe.com/#themeID/2318770
+ * #232621 dark bluegreen
+ * #7D603E bright chocolate
+ * #E0D1A3 sand
+ * #5E7D4D green
+ * #C74223 cherry
+*/
+
+html {
+	background: #7d603e;
+	color: #232621;
+}
+i[class^=icon][title]{
+	cursor: pointer;
+}
+	#body {}
+		#head { }
+		#torso {
+			width: 800px;
+			height: 100%;
+			margin: auto;
+			padding: 20px 10px 10px 10px;
+		}
+			#notebook {
+				background: #fff;
+			}
+				#breadcrumbs {
+					margin: 0 20px 10px 20px;
+					padding: 10px 0 0 0;
+					border-bottom: solid 1px #232621;;
+				}
+				#breadcrumbs:empty {	
+					display: none;
+				}
+					#breadcrumbs > span:before {
+						content: " > ";
+					}
+					#breadcrumbs > span:first-child:before{
+						content: "";
+					}
+				
+				#sheet {
+					margin: 0 20px 10px 20px;
+					padding: 10px 0 0 0;
+					min-height: 800px;
+				}
+					.notes {
+						color:  #464C42;
+						font-size: 90%;
+						margin-left: 1em;
+					}
+					.additional, .actions {
+						float: right;
+					}
+					.actions {
+						display: none;
+						margin-right: 1em;
+					}
+					.node:hover > .headline .actions {
+						display: inline;						
+					}
+				
+			
+			#bookmarks { 
+			
+			}
+		
+		#feet {
+		
+		}
+				
