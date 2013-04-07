@@ -11,13 +11,13 @@ html {
 	background: #7d603e;
 	color: #232621;
 }
-i[class^=icon][title]{
+i[class^=icon][title], .bullet{
 	cursor: pointer;
 }
 	#body {}
 		#head { }
 		#torso {
-			width: 800px;
+			width: 900px;
 			height: 100%;
 			margin: auto;
 			padding: 20px 10px 10px 10px;
@@ -54,11 +54,11 @@ i[class^=icon][title]{
 						float: right;
 					}
 					.actions {
-						display: none;
-						margin-right: 1em;
+						visibility: hidden;
+						margin-left: 1em;
 					}
 					.node:hover > .headline .actions {
-						display: inline;						
+						visibility: visible;						
 					}
 				
 			
