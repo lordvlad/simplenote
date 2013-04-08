@@ -14,4 +14,6 @@ knockout.js
 
 dropbox.js
 
+moment.js http://momentjs.com/
+
 sticky notes icon http://www.iconsdb.com/orange-icons/sticky-note-icon.html

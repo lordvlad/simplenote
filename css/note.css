@@ -14,6 +14,9 @@ html {
 i[class^=icon][title], .bullet{
 	cursor: pointer;
 }
+[contenteditable]{
+	outline: none;
+}
 	#body {}
 		#head { }
 		#torso {
@@ -33,10 +36,13 @@ i[class^=icon][title], .bullet{
 				#breadcrumbs:empty {	
 					display: none;
 				}
-					#breadcrumbs > span:before {
+					#breadcrumbs > a {
+						text-decoration: none;
+					}
+					#breadcrumbs > a:before {
 						content: " > ";
 					}
-					#breadcrumbs > span:first-child:before{
+					#breadcrumbs > a:first-child:before{
 						content: "";
 					}
 				
@@ -45,10 +51,31 @@ i[class^=icon][title], .bullet{
 					padding: 10px 0 0 0;
 					min-height: 800px;
 				}
+				#sheet > .notes {
+					margin-bottom: 2em;
+				}
+				#sheet > div > .actions, #sheet > div > .additional {
+					visibility: visible;
+				}
+					.bullet {
+						display: inline-block;
+						width: 1em;
+					}
+					.node {
+						margin-bottom: .5em;
+					}
+					.title:empty:before, .note:visible:empty:before {
+						content : "type something...";
+						opacity: 0.6;
+					}
 					.notes {
 						color:  #464C42;
 						font-size: 90%;
-						margin-left: 1em;
+						margin-left: 2em;
+					}
+					.children {
+						margin-left: 2em;
+						margin-top: .5em;
 					}
 					.additional, .actions {
 						float: right;
@@ -57,8 +84,16 @@ i[class^=icon][title], .bullet{
 						visibility: hidden;
 						margin-left: 1em;
 					}
-					.node:hover > .headline .actions {
+					.node-body:hover {
+						background-color: rgba(0,0,0,.05);
+					}
+					.node-body:hover > .headline > .actions {
 						visibility: visible;						
+					}
+					
+					#addNode {
+						cursor: pointer;
+						opacity: .6;
 					}
 				
 			
