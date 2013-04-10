@@ -74,8 +74,11 @@ i[class^=icon][title], .bullet{
 						margin-left: 2em;
 					}
 					.children {
-						margin-left: 2em;
+						margin-left: 1em;
 						margin-top: .5em;
+					}
+					#sheet>.children{
+						margin-left: 0;
 					}
 					.additional, .actions {
 						float: right;
@@ -94,6 +97,7 @@ i[class^=icon][title], .bullet{
 					#addNode {
 						cursor: pointer;
 						opacity: .6;
+						padding-bottom: 2em;
 					}
 				
 			

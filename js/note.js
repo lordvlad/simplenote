@@ -1,3 +1,4 @@
+//(function($){
 /*
  * creating standartized objects
  */
@@ -12,10 +13,12 @@ function Obj(a,b,c){
  */
 ko.bindingHandlers.editable = {
 	init : function( el, acc ){
+		console.log(arguments)
 		$(el).attr("contenteditable",true).html(acc()()).blur(function(){acc()($(el).html().replace(/&nbsp;$|^&nbsp;|^\s*|\s*$/g,""));}).focus(function(){$(el).html(acc()()||"&nbsp;");});
 		acc().subscribe(function(){$(el).html(acc()());});
 	},
-}
+};
+ko.bindingHandlers.test = { init : function(){ console.log(arguments)}};
 
 
 var isPlainObject = jQuery.isPlainObject;
@@ -27,39 +30,39 @@ var isPlainObject = jQuery.isPlainObject;
 		_init: function(){
 			var self 		 	= this;
 			this.nodes		 	= _([]);
-			this.branch 	 	= _([]);
 			this.hash 			= (function(){
 				var a = _(); function b(c){					
 					return c&&c.match?(location.hash="#"+c):a(location.hash&&location.hash.match(/.(.*)/)&&location.hash.match(/.(.*)/)[1]||"") 
 				}; a.subscribe(b); onhashchange=b; return b(), a;
 			}());
-			this.current 		= _(function(){	
-				return self.nodes().filter(function(n){ return n.id === self.hash(); })[0] || self.nodes().filter(function(n){ return n.parent() === null; })[0];
-			})
+			this.current 		= (function(){	
+				var a = _(false), b = _(function(){ return self.nodes().filter(function(n){ return n.id === self.hash(); })[0] || self.nodes().filter(function(n){ return n.parent() === null; })[0];}).extend({throttle: 10});
+				b.subscribe(function(v){if(a()!==v) a(v);});
+				a.subscribe(function(v){console.log("current changed")});
+				return a;
+			}());
 			this.breadcrumbs	= _(function(){
 				var x = [], t = self.current();
 				while ( t ){ x.unshift( { text: t.title(), href:"#"+t.id } ); t = self.nodes().filter(function(n){ return n.id === t.parent(); })[0]; }
 				return x[1] && x || [];
 			}).extend({throttle: 10});
-			this.bookmars 		= _(function(){
+			this.bookmarks 		= _(function(){
 				return self.nodes()[1] ? self.nodes().filter(function(n){return n.bookmarked();}) : [];
 			}).extend({throttle: 10});
 			this.timeout 		= null;
 			this.interval 		= null;
 		},
-		_create: function($){
+		_create: function(){
 			var self = this;
 			try {
-				var json = JSON.parse( localStorage.notes );
-				json.nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});
-				self.branch( json.branch.map(function(n){ return self.nodes().filter(function(m){return m.id===n;})[0]; }) );
-			
+				JSON.parse( localStorage.notes ).nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});
+				this.root = this.nodes.filter(function(n){return n.parent() === null;})[0];
 			} catch( e ) {
-				this.branch.push( Simplenote.Node({
+				this.root = Simplenote.Node({
 					smplnt : this,
 					parent : _(null),
 					title  : _("home"),
-				}) );
+				});
 			}
 			$( document ).on( "click", ".headline", function(e){
 				var t = $(e.target);
@@ -73,6 +76,7 @@ var isPlainObject = jQuery.isPlainObject;
 			self.startPeriodicalSave();
 		},
 		attachElement : function(el,item){
+			console.log("render");
 			$(el).filter(".node").data("item",item);
 			item.element = $(el).filter(".node")[0];
 		},
@@ -88,8 +92,8 @@ var isPlainObject = jQuery.isPlainObject;
 			clearInterval( this.interval );
 		},
 		addNodeHere : function( a ){
-			if (! isPlainObject(a) ) a = {};
-			this.addNodeTo( this.current(), a );
+			if (! isPlainObject(a) ) { self = a.smplnt; a = {}; } else { self = this; }
+			self.addNodeTo( self.current(), a );
 		},
 		addNodeTo : function( b, a ){
 			Simplenote.Node($.extend(a,{parent:b,smplnt:this}));
@@ -108,7 +112,9 @@ var isPlainObject = jQuery.isPlainObject;
 					x && x.active && x.active( true );
 				},
 				"addBelow" : function(e,self){
-					self.insertNodeAfter( ko.dataFor( this ) );
+					var a = ko.dataFor( this );
+					a.active(false);
+					self.insertNodeAfter( a );
 				},
 				"addChild" : function(e,self){
 					var a = ko.dataFor( this );
@@ -180,7 +186,6 @@ var isPlainObject = jQuery.isPlainObject;
 		toJSON : function(){
 			return {
 				nodes 	: this.nodes(),
-				branch 	: this.branch().map(function(n){return n.id})
 			}
 		}
 	},{
@@ -315,4 +320,5 @@ var isPlainObject = jQuery.isPlainObject;
 ));
 
 // Get the party started
-(function($,v,e){$(function(){v.element=$(e);v._create($);ko.applyBindings(v);});}(jQuery,window.note = new Simplenote,"#body"));
+(function(v,e){$(function(){v.element=$(e);v._create();ko.applyBindings(v);});}(window.note = new Simplenote,"#body"));
+//}(jQuery));
