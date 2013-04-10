@@ -45,7 +45,7 @@ function Obj(a,b,c){
 
 
 var isPlainObject = jQuery.isPlainObject;
-(function($,_,time,uuid){
+(function(_,time,uuid){
 
 
 	Obj("Simplenote",{
@@ -58,9 +58,12 @@ var isPlainObject = jQuery.isPlainObject;
 					return c&&c.match?(location.hash="#"+c):a(location.hash&&location.hash.match(/.(.*)/)&&location.hash.match(/.(.*)/)[1]||"");
 				}; a.subscribe(b); onhashchange=b; return b(), a;
 			}());
-			this.current 		= _(function(){	
-				return self.nodes().filter(function(n){ return n.id === self.hash(); })[0] || self.nodes().filter(function(n){ return n.parent() === null; })[0];
-			})
+			this.current 		= (function(){	
+				var a = _(false), b = _(function(){ return self.nodes().filter(function(n){ return n.id === self.hash(); })[0] || self.nodes().filter(function(n){ return n.parent() === null; })[0];}).extend({throttle: 10});
+				b.subscribe(function(v){if(a()!==v) a(v);});
+				a.subscribe(function(v){console.log("current changed")});
+				return a;
+			}());
 			this.breadcrumbs	= _(function(){
 				var x = [], t = self.current();
 				while ( t ){ x.unshift( { text: t.title(), href:"#"+t.id } ); t = self.nodes().filter(function(n){ return n.id === t.parent(); })[0]; }
@@ -75,8 +78,7 @@ var isPlainObject = jQuery.isPlainObject;
 		_create: function(){
 			var self = this;
 			try {
-				var json = JSON.parse( localStorage.notes );
-				json.nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});			
+				JSON.parse( localStorage.notes ).nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});
 			} catch( e ) {
 				this.root = Simplenote.Node({
 					smplnt : this,
@@ -285,20 +287,7 @@ var isPlainObject = jQuery.isPlainObject;
 			this.active				= _(true);
 			this.activeNote			= _(false);
 			this.isCurrent			= _(function(){ return self.smplnt.current() === self });
-			this.findChildren		= function(){ return self.children(self.smplnt.nodes().filter(function(n){return n.parent()===self.id}));};
-			this.children 	 	 	= (function(){
-				var a = _([])/*, b = _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id});}).extend({throttle:10})*/;
-				
-				/*b.subscribe(function(v){
-					if ( !v.length && !a().length ) return;
-					if ( !v.length ) return a([]);
-					if ( !a().length ) return a(v);
-					console.log( a(), v );				
-				});*/
-				a.subscribe(function(){console.log("children changed");});
-				return a;
-				
-			}());
+			this.children			= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id});})
 			this.hasNote		 	= _(function(){ return self.note().length; });
 			this.hasChildren		= _(function(){ return self.children().length; });
 			this.cssClass			= _(function(){ return self.listStyleType().concat("node").filter(Boolean).join(" "); });
@@ -374,8 +363,8 @@ var isPlainObject = jQuery.isPlainObject;
 		}
 	});	
 	
-}(jQuery,function(v){return v&&((v.call||v.read)&&ko.computed(v)||v.map&&ko.observableArray(v))||ko.observable(v)},(function(){ var a = ko.observable(0); setInterval(function(){a(new Date());},1e3); return a; }()),a=(function(c,b,e){c=[],b=function(a){return a?(a^Math.random()*16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,b)};return function(){while(~c.indexOf(e=b()));return c.push(e),e}}())
+}(function(v){return v&&((v.call||v.read)&&ko.computed(v)||v.map&&ko.observableArray(v))||ko.observable(v)},(function(){ var a = ko.observable(0); setInterval(function(){a(new Date());},1e3); return a; }()),a=(function(c,b,e){c=[],b=function(a){return a?(a^Math.random()*16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,b)};return function(){while(~c.indexOf(e=b()));return c.push(e),e}}())
 ));
 
 // Get the party started
-(function($,v,e){$(function(){v.element=$(e);v._create();ko.applyBindings(v);});}(jQuery,window.note = new Simplenote,"#body"));
+(function(v,e){$(function(){v.element=$(e);v._create();ko.applyBindings(v);});}(window.note = new Simplenote,"#body"));
