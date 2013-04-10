@@ -10,16 +10,42 @@ function Obj(a,b,c){
 /* 
  * extend knockout
  */
-ko.bindingHandlers.editable = {
-	init : function( el, acc ){
-		$(el).attr("contenteditable",true).html(acc()()).blur(function(){acc()($(el).html().replace(/&nbsp;$|^&nbsp;|^\s*|\s*$/g,""));}).focus(function(){$(el).html(acc()()||"&nbsp;");});
-		acc().subscribe(function(){$(el).html(acc()());});
+(function($,a){$.extend(true,a,{
+	editable : {
+		init : function( el, acc ){
+			$(el).attr("contenteditable",true).html(acc()()).blur(function(){acc()($(el).html().replace(/&nbsp;$|^&nbsp;|^\s*|\s*$/g,""));}).focus(function(){$(el).html(acc()()||"");});
+			acc().subscribe(function(){$(el).html(acc()());});
+		},
 	},
-}
+	sortable : {
+		init: function( el, acc, all, obj, cntx ){
+			$( el ).sortable({
+				items : ".node",
+				handle: ".bullet",				
+				placeholder: "sortable-placeholder",
+				connectWith: ".children",
+				start : function( e, ui ){ ko.dataFor(ui.item[0]).expanded(false); },
+				stop : function(e, ui ){
+					return;
+				}
+			});
+		}
+	},
+});}(jQuery, ko.bindingHandlers));
+/*
+ * extend jQuery's index function
+ */
+(function($){
+	$.fn.oldIndex = $.fn.index;
+	$.fn.index = function(){
+		if (! $.isNumeric(arguments[0]) ) return $.fn.oldIndex.apply(this,arguments);
+		return this.siblings().addBack().eq(arguments[0]).before(this)
+	};
+}(jQuery));
 
 
 var isPlainObject = jQuery.isPlainObject;
-(function(_,time,uuid){
+(function($,_,time,uuid){
 
 
 	Obj("Simplenote",{
@@ -27,10 +53,9 @@ var isPlainObject = jQuery.isPlainObject;
 		_init: function(){
 			var self 		 	= this;
 			this.nodes		 	= _([]);
-			this.branch 	 	= _([]);
 			this.hash 			= (function(){
 				var a = _(); function b(c){					
-					return c&&c.match?(location.hash="#"+c):a(location.hash&&location.hash.match(/.(.*)/)&&location.hash.match(/.(.*)/)[1]||"") 
+					return c&&c.match?(location.hash="#"+c):a(location.hash&&location.hash.match(/.(.*)/)&&location.hash.match(/.(.*)/)[1]||"");
 				}; a.subscribe(b); onhashchange=b; return b(), a;
 			}());
 			this.current 		= _(function(){	
@@ -41,25 +66,23 @@ var isPlainObject = jQuery.isPlainObject;
 				while ( t ){ x.unshift( { text: t.title(), href:"#"+t.id } ); t = self.nodes().filter(function(n){ return n.id === t.parent(); })[0]; }
 				return x[1] && x || [];
 			}).extend({throttle: 10});
-			this.bookmars 		= _(function(){
+			this.bookmarks 		= _(function(){
 				return self.nodes()[1] ? self.nodes().filter(function(n){return n.bookmarked();}) : [];
 			}).extend({throttle: 10});
 			this.timeout 		= null;
 			this.interval 		= null;
 		},
-		_create: function($){
+		_create: function(){
 			var self = this;
 			try {
 				var json = JSON.parse( localStorage.notes );
-				json.nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});
-				self.branch( json.branch.map(function(n){ return self.nodes().filter(function(m){return m.id===n;})[0]; }) );
-			
+				json.nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});			
 			} catch( e ) {
-				this.branch.push( Simplenote.Node({
+				this.root = Simplenote.Node({
 					smplnt : this,
 					parent : _(null),
 					title  : _("home"),
-				}) );
+				});
 			}
 			$( document ).on( "click", ".headline", function(e){
 				var t = $(e.target);
@@ -67,14 +90,27 @@ var isPlainObject = jQuery.isPlainObject;
 			});
 			$( document ).on({
 				"keydown" : wre.hotKeyHandler( this.hotkeys, this ),
-				"keyup" : function(){ self.save.call(self);},
+				"keyup" : function(e){ self.save.call(self); },
+				"click" : function(e){ 
+					self.save.call(self);
+					$(e.target).is(".headline") && !$(e.target).parents("#addNode").length && ko.dataFor( e.target ).active(true);
+				},
 				"dblclick" : function(e){ $(e.target).is(".headline, .title") && self.hash( ko.dataFor(e.target).id );}
-			});
+			});			
+			this.pop = $("<audio>").attr({src:"snd/pop.mp3"}).appendTo("body")[0];
 			self.startPeriodicalSave();
 		},
 		attachElement : function(el,item){
+			console.log("NEW RENDER");
 			$(el).filter(".node").data("item",item);
 			item.element = $(el).filter(".node")[0];
+		},
+		findLostNodes : function(){
+			var a = this.nodes().map(function(n){return n.id}),
+				b = this.nodes().filter(function(n){return n.parent() && !~a.indexOf(n.parent())});
+			if (!b[0]) return;
+			var c = this.addNodeTo( this.root, { title : "*** LOST NODES ***" } );
+			b.forEach(function(n){n.parent(c.id);});
 		},
 		save : function(){
 			var self = this;
@@ -82,21 +118,22 @@ var isPlainObject = jQuery.isPlainObject;
 			this.timeout = setTimeout( function(){ localStorage.notes = JSON.stringify( self.toJSON() ); }, 100 );
 		},
 		startPeriodicalSave : function(){
-			this.interval = setInterval( this.save.call( this ), 6e4 );
+			var self = this;
+			this.interval = setInterval( function(){self.save.call( self );}, 6e4 );
 		},
 		stopPeriodicalSave : function(){
 			clearInterval( this.interval );
 		},
 		addNodeHere : function( a ){
-			if (! isPlainObject(a) ) a = {};
-			this.addNodeTo( this.current(), a );
+			if (! isPlainObject(a) ) { self = a.smplnt; a = {}; } else { self = this }
+			return self.addNodeTo( self.current(), a );
 		},
 		addNodeTo : function( b, a ){
-			Simplenote.Node($.extend(a,{parent:b,smplnt:this}));
+			return Simplenote.Node($.extend(a,{parent:b,smplnt:this}));
 		},
 		insertNodeAfter : function( b, a ){
-			Simplenote.Node($.extend(a,{parent:b.parent(),smplnt:this,after:b}));
-		},
+			return Simplenote.Node($.extend(a,{listStyleType:b.listStyleType(),parent:b.parent(),smplnt:this,after:b}));
+		},			
 		hotkeys : {
 			functions : {
 				"next" : function(e,self){
@@ -108,6 +145,7 @@ var isPlainObject = jQuery.isPlainObject;
 					x && x.active && x.active( true );
 				},
 				"addBelow" : function(e,self){
+					ko.dataFor(this).active(false);
 					self.insertNodeAfter( ko.dataFor( this ) );
 				},
 				"addChild" : function(e,self){
@@ -118,7 +156,7 @@ var isPlainObject = jQuery.isPlainObject;
 				"editNote" : function(){
 					var a = ko.dataFor( this );
 					a.expanded( true );
-					a.note(a.note()||"&nbsp");
+					a.note(a.note()||"");
 					a.activeNote( true );
 				},
 				"editTitle" : function(){
@@ -149,38 +187,53 @@ var isPlainObject = jQuery.isPlainObject;
 					a.active(false);
 					self.hash( a.id );
 					a.active(true);
-					console.log( self.current().id );
 				},
 				"zoomOut" : function(e,self){
 					var a  = ko.dataFor( this );
 					a.active( false );
 					self.hash( self.current().parent() || "" );
 					a.active(true);
+				},
+				"backspace" : function(e,self){
+					this.innerHTML = Simplenote.Node.parse(this.innerHTML)
+					if ( this.innerHTML[0] ) return;
+					this.innerHTML = "";
+					var a = ko.dataFor( this );
+					if ( $(this).is(".notes") ){
+						a.active(true);
+						self.save();
+					} else if ( $(this).is(".title") ) {
+						if ( a.listStyleType()[2] ) return a.listStyleType.splice(2);
+						if ( a.listStyleType()[1] ) return a.listStyleType.splice(1);
+						if ( a.listStyleType()[0] ) return a.listStyleType.splice(0);
+						var b= ko.dataFor( $(this).parents(".node").first().findPrev(".node")[0] );
+						return self.nodes.remove(a), b.active(true);
+					}
 				}
 			},
 			hotkeys : [
-				{ shift : false, ctrl : true,  alt : false, key : 74,      							action : "next" }, 			// j
-				{ shift : false, ctrl : true,  alt : false, key : "DOWN",  							action : "next" }, 			// down
-				{ shift : false, ctrl : true,  alt : false, key : 75,      							action : "prev" }, 			// k
-				{ shift : false, ctrl : true,  alt : false, key : "UP",    							action : "prev" }, 			// up
-				{ shift : false, ctrl : false, alt : false, key : "ENTER", 	is : ".title", 			action : "addBelow" }, 		// enter
-				{ shift : true , ctrl : false, alt : false, key : "ENTER", 	is : ".title",          action : "editNote" }, 		// shift enter
-				{ shift : true , ctrl : false, alt : false, key : "ENTER", 	is : ".notes",          action : "editTitle" },		// shift enter
-				{ shift : false, ctrl : true,  alt : false, key : "ENTER", 	is : ".title, .notes",	action : "addChild" },	 	// ctrl enter
-				{ shift : false, ctrl : false, alt : false, key : "TAB",   	is : ".title, .notes",	action : "indent" },   		// tab
-				{ shift : true,  ctrl : false, alt : false, key : "TAB",  	is : ".title, .notes",	action : "outdent" },		// shift tab
-				{ shift : false, ctrl : true,  alt : false, key : "SPACE",	is : ".title, .notes",	action : "toggleExpand" },	// ctrl space
-				{ shift : false, ctrl : false, alt : true , key : "RIGHT",	is : ".title, .notes",	action : "zoomIn" }, 		// alt right
-				{ shift : false, ctrl : false, alt : true , key : 70,		is : ".title, .notes",	action : "zoomIn" }, 		// alt f
-				{ shift : false, ctrl : false, alt : true , key : "LEFT",	is : ".title, .notes",	action : "zoomOut" }, 		// alt left
-				{ shift : false, ctrl : false, alt : true , key : 66,		is : ".title, .notes",	action : "zoomOut" }, 		// alt b
+				{ shift : false, ctrl : true,  alt : false, key : 74,				      										action : "next" }, 			// j
+				{ shift : false, ctrl : true,  alt : false, key : "DOWN",  														action : "next" }, 			// down
+				{ shift : false, ctrl : true,  alt : false, key : 75,      														action : "prev" }, 			// k
+				{ shift : false, ctrl : true,  alt : false, key : "UP",    														action : "prev" }, 			// up
+				{ shift : false, ctrl : false, alt : false, key : "ENTER", 								is : ".title", 			action : "addBelow" }, 		// enter
+				{ shift : true , ctrl : false, alt : false, key : "ENTER", 								is : ".title",          action : "editNote" }, 		// shift enter
+				{ shift : true , ctrl : false, alt : false, key : "ENTER", 								is : ".notes",          action : "editTitle" },		// shift enter
+				{ shift : false, ctrl : false, alt : false, key : "TAB",   								is : ".title",			action : "indent" },   		// tab
+				{ shift : true,  ctrl : false, alt : false, key : "TAB",  								is : ".title",			action : "outdent" },		// shift tab
+				{ shift : false, ctrl : true,  alt : false, key : "ENTER", 								is : ".title, .notes",	action : "addChild" },	 	// ctrl enter
+				{ shift : false, ctrl : true,  alt : false, key : "SPACE",								is : ".title, .notes",	action : "toggleExpand" },	// ctrl space
+				{ shift : false, ctrl : false, alt : true , key : "RIGHT",								is : ".title, .notes",	action : "zoomIn" }, 		// alt right
+				{ shift : false, ctrl : false, alt : true , key : 70,									is : ".title, .notes",	action : "zoomIn" }, 		// alt f
+				{ shift : false, ctrl : false, alt : true , key : "LEFT",								is : ".title, .notes",	action : "zoomOut" }, 		// alt left
+				{ shift : false, ctrl : false, alt : true , key : 66,									is : ".title, .notes",	action : "zoomOut" }, 		// alt b
+				{ shift : false, ctrl : false, alt : false, key : "BACKSPACE",	pd:true,				is : ".title, .notes",  action : "backspace" },		// backspace
 				
 			]
 		},
 		toJSON : function(){
 			return {
-				nodes 	: this.nodes(),
-				branch 	: this.branch().map(function(n){return n.id})
+				nodes 	: this.nodes()
 			}
 		}
 	},{
@@ -207,42 +260,48 @@ var isPlainObject = jQuery.isPlainObject;
 			$("#note").remove();
 			var n = $("<div id='note' class='ui-widget-content ui-tooltip'>"+string+"</div>").appendTo( "body" ), w=n.width()/2;;
 			n.hide().css({"border-radius":4,position:"fixed",top:"10px",left:"50%","margin-left":-w}).fadeIn( 100 ).delay( 4000 ).fadeOut( 100 );
-		}
+		},
 	});
 
 	Obj("Simplenote.Node",{
 		// private methods
 		_init: function(o){
+			console.log("new node");
 			var self 			 	= this;
 			this.smplnt			 	= o.smplnt;
-			this.title 			 	= (function(){
-				var a = _( o.title|| "&nbsp;");
-				return _({
-					read: function(){ return a() },
-					write: function(v){a( Simplenote.Node.parse(v) ); }
-				});
-			}());
 			this.id				 	= o.id || uuid();
 			this.parent     	 	= _((o.parent&&o.parent.id)||o.parent);
+			if ( o.parent === null ) { this.smplnt.root = this }
+			this.title 			 	= (function(){ var a = _( o.title|| ""); return _({ read: function(){ return a() }, write: function(v){a( Simplenote.Node.parse(v) ); } }); }());
+			this.note 		 	 	= (function(){ var a = _( o.note || "" ); return _({ read: function(){ return a(); }, write: function(v){ a( Simplenote.Node.parse(v) ); } }); }());
 			this.tags 			 	= _(o.tags||[]);
-			this.note 		 	 	= (function(){
-				var a = _( o.note || "" );
-				return _({
-					read: function(){ return a(); },
-					write: function(v){ a( Simplenote.Node.parse(v) ); }
-				});
-			}());
 			this.deadline	     	= _(o.deadline&&new Date(o.deadline)||false);
 			this.files		 	 	= _(o.files||[]);
 			this.bookmarked  	 	= _(o.bookmarked||false);
 			this.done		 	 	= _(o.done||false);
 			this.expanded			= _(o.expanded||false);
+			this.listStyleType		= _(o.listStyleType||[]);
 			this.editingTitle    	= _(false);
 			this.active				= _(true);
 			this.activeNote			= _(false);
-			this.children 	 	 	= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id});});
+			this.isCurrent			= _(function(){ return self.smplnt.current() === self });
+			this.findChildren		= function(){ return self.children(self.smplnt.nodes().filter(function(n){return n.parent()===self.id}));};
+			this.children 	 	 	= (function(){
+				var a = _([])/*, b = _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id});}).extend({throttle:10})*/;
+				
+				/*b.subscribe(function(v){
+					if ( !v.length && !a().length ) return;
+					if ( !v.length ) return a([]);
+					if ( !a().length ) return a(v);
+					console.log( a(), v );				
+				});*/
+				a.subscribe(function(){console.log("children changed");});
+				return a;
+				
+			}());
 			this.hasNote		 	= _(function(){ return self.note().length; });
 			this.hasChildren		= _(function(){ return self.children().length; });
+			this.cssClass			= _(function(){ return self.listStyleType().concat("node").filter(Boolean).join(" "); });
 			this.bullet				= _(function(){ return ( self.hasNote() || self.hasChildren() ) && ( !self.expanded() && "&#9658;" || self.expanded() && "&#9660;" ) || "&#9679;"; });
 			this.deadlineDisplay 	= _(function(){ time(); var d = self.deadline(); return d?(d>new Date?moment(d).calendar():self.alarm()):"";});
 			this.showEllipsis    	= _(function(){ return self.hasNote() && !self.expanded(); });
@@ -255,6 +314,7 @@ var isPlainObject = jQuery.isPlainObject;
 		},
 		alarm : function(){
 			this.deadline(false);
+			self.smplnt.pop.play();
 			Simplenote.alert( this.title() );
 			return"";
 		},
@@ -288,6 +348,7 @@ var isPlainObject = jQuery.isPlainObject;
 		toJSON : function(){
 			return {
 				id 			: this.id,
+				//pos			: this.pos(),
 				parent		: this.parent(),
 				title 		: this.active() && $(this.element).find(".title").html() || this.title(),
 				note 		: this.activeNote() && $(this.element).find(".notes").html() || this.note(),
@@ -296,7 +357,8 @@ var isPlainObject = jQuery.isPlainObject;
 				deadline	: this.deadline(),
 				tags		: this.tags(),
 				files		: this.files(),
-				bookmarked	: this.bookmarked()
+				bookmarked	: this.bookmarked(),
+				listStyleType: this.listStyleType()
 			}
 		}
 		
@@ -308,11 +370,12 @@ var isPlainObject = jQuery.isPlainObject;
 				.replace(/<b>|<\/b>/g,"").replace(/\*[\w‰ˆ¸ƒ÷‹ﬂ\s]+\*/ig,function(m){return "<b>"+m+"</b>"}) // bold
 				.replace(/<u>|<\/u>/g,"").replace(/\_[\w‰ˆ¸ƒ÷‹ﬂ\s]+\_/ig,function(m){return "<u>"+m+"</u>"}) // underline
 				.replace(/<i>|<\/i>/g,"").replace(/\/[\w‰ˆ¸ƒ÷‹ﬂ\s]+\//ig,function(m){return "<i>"+m+"</i>"}) // italics
+				.replace(/<br>$|<br\/>$/,"")
 		}
 	});	
 	
-}(function(v){return v&&((v.call||v.read)&&ko.computed(v)||v.map&&ko.observableArray(v))||ko.observable(v)},(function(){ var a = ko.observable(0); setInterval(function(){a(new Date());},1e3); return a; }()),a=(function(c,b,e){c=[],b=function(a){return a?(a^Math.random()*16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,b)};return function(){while(~c.indexOf(e=b()));return c.push(e),e}}())
+}(jQuery,function(v){return v&&((v.call||v.read)&&ko.computed(v)||v.map&&ko.observableArray(v))||ko.observable(v)},(function(){ var a = ko.observable(0); setInterval(function(){a(new Date());},1e3); return a; }()),a=(function(c,b,e){c=[],b=function(a){return a?(a^Math.random()*16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,b)};return function(){while(~c.indexOf(e=b()));return c.push(e),e}}())
 ));
 
 // Get the party started
-(function($,v,e){$(function(){v.element=$(e);v._create($);ko.applyBindings(v);});}(jQuery,window.note = new Simplenote,"#body"));
+(function($,v,e){$(function(){v.element=$(e);v._create();ko.applyBindings(v);});}(jQuery,window.note = new Simplenote,"#body"));

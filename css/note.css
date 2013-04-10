@@ -11,11 +11,20 @@ html {
 	background: #7d603e;
 	color: #232621;
 }
+body {
+	overflow-y: scroll;
+}
 i[class^=icon][title], .bullet{
 	cursor: pointer;
 }
 [contenteditable]{
 	outline: none;
+}
+.sortable-placeholder {
+	height:2px;
+	background:#bbb;
+	padding:0;
+	margin:0;
 }
 	#body {}
 		#head { }
@@ -25,8 +34,17 @@ i[class^=icon][title], .bullet{
 			margin: auto;
 			padding: 20px 10px 10px 10px;
 		}
+		#torso > table {
+			width : 100%;
+		}
+		#torso > table td{
+			vertical-align: top;
+		}
 			#notebook {
 				background: #fff;
+				-webkit-box-shadow: 0 0 5px #aaa;
+				box-shadow: 0 0 5px #aaa;
+				border-radius: 4px;
 			}
 				#breadcrumbs {
 					margin: 0 20px 10px 20px;
@@ -48,21 +66,72 @@ i[class^=icon][title], .bullet{
 				
 				#sheet {
 					margin: 0 20px 10px 20px;
-					padding: 10px 0 0 0;
+					padding: 10px 0 10px 0;
 					min-height: 800px;
+					width: 810px;
 				}
-				#sheet > .notes {
+				#sheet > div > .notes {
 					margin-bottom: 2em;
 				}
 				#sheet > div > .actions, #sheet > div > .additional {
 					visibility: visible;
 				}
+					.children.top {
+						counter-reset: decimalC, upperAlphaC, lowerAlphaC;
+					}
+					.node:not(#sheet) {
+						margin-bottom: .5em;
+					}
+					.node.decimal {
+						counter-increment: decimalC;
+					}
+					.node.decimal > .children {
+						counter-reset: decimalC;
+					}
+					.node.decimal > div > div > .title:before {
+						content: counter( decimalC, decimal ) " ";
+					}
+					.node.decimal.dot > div > div > .title:before {
+						content: counter( decimalC, decimal ) ". ";
+					}
+					.node.decimal.add > div > div > .title:before {
+						content: counters( decimalC, "." ) " ";
+					}
+					.node.decimal.dot.add > div > div > .title:before {
+						content: counters( decimalC, "." ) ". ";
+					}
+					.node.upperAlpha{
+						counter-increment: upperAlphaC;
+					}
+					.node.upperAlpha > .children {
+						counter-reset: upperAlphaC;
+					}
+					.node.upperAlpha > div > div .title:before {
+						content: counter( upperAlphaC, upper-alpha ) " ";
+					}
+					.node.upperAlpha.dot > div > div >.title:before{
+						content: counter( upperAlphaC, upper-alpha ) ". ";
+					}
+					.node.lowerAlpha{
+						counter-increment: lowerAlphaC;
+					}
+					.node.lowerAlpha > .children {
+						counter-reset: lowerAlphaC;
+					}
+					.node.lowerAlpha > div > div .title:before {
+						content: counter( lowerAlphaC, lower-alpha ) " ";
+					}
+					.node.lowerAlpha.dot > div > div >.title:before{
+						content: counter( lowerAlphaC, lower-alpha ) ". ";
+					}
+					.node-body:hover > div > .bullet{
+						opacity: 1;
+					}
 					.bullet {
 						display: inline-block;
+						text-align: center;
 						width: 1em;
-					}
-					.node {
-						margin-bottom: .5em;
+						opacity: 0.4;
 					}
 					.title:empty:before, .note:visible:empty:before {
 						content : "type something...";
@@ -72,9 +141,10 @@ i[class^=icon][title], .bullet{
 						color:  #464C42;
 						font-size: 90%;
 						margin-left: 2em;
+						min-height: 1em;
 					}
-					.children {
-						margin-left: 2em;
+					.children:not(.top) {
+						margin-left: 1em;
 						margin-top: .5em;
 					}
 					.additional, .actions {
@@ -97,8 +167,27 @@ i[class^=icon][title], .bullet{
 					}
 				
 			
-			#bookmarks { 
-			
+			#bookmarks {
+				margin-top: .2em;
+				width: 50px;
+			}
+			#bookmarks a,#bookmarks a:visited {
+				color: #232621;
+				background: white;
+				overflow: hidden;
+				max-width: 50px;
+				min-width: 2em;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				display: inline-block;
+				padding: .2em .4em .2em .4em;
+				border-top-right-radius: 4px;
+				border-bottom-right-radius: 4px;
+				margin-bottom: .2em;
+				text-decoration: none;
+			}
+			#bookmarks a:active, #bookmarks a:hover, #bookmarks a.active {
+				background: #E0D1A3;
 			}
 		
 		#feet {
