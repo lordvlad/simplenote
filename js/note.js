@@ -10,7 +10,7 @@ function Obj(a,b,c){
 /* 
  * extend knockout
  */
-(function($,a){$.extend(true,a,{
+jQuery.extend(true,ko.bindingHandlers,{
 	editable : {
 		init : function( el, acc ){
 			$(el).attr("contenteditable",true).html(acc()()).blur(function(){acc()($(el).html().replace(/&nbsp;$|^&nbsp;|^\s*|\s*$/g,""));}).focus(function(){$(el).html(acc()()||"");});
@@ -31,7 +31,7 @@ function Obj(a,b,c){
 			});
 		}
 	},
-});}(jQuery, ko.bindingHandlers));
+});
 /*
  * extend jQuery's index function
  */
@@ -46,27 +46,31 @@ function Obj(a,b,c){
 
 var isPlainObject = jQuery.isPlainObject;
 (function(_,time,uuid){
-
-
+	"use strict";
+	/*
+	 * Simplenote
+	 */
 	Obj("Simplenote",{
 		// private methods
 		_init: function(){
 			var self 		 	= this;
 			this.nodes		 	= _([]);
+			this.selected		= _(function(){return self.nodes().filter(function(n){ return n.selected(); });});			
+			this.tags			= _([]);
 			this.hash 			= (function(){
 				var a = _(); function b(c){					
 					return c&&c.match?(location.hash="#"+c):a(location.hash&&location.hash.match(/.(.*)/)&&location.hash.match(/.(.*)/)[1]||"");
-				}; a.subscribe(b); onhashchange=b; return b(), a;
+				}; a.subscribe(b); window.onhashchange=b; return b(), a;
 			}());
 			this.current 		= (function(){	
 				var a = _(false), b = _(function(){ return self.nodes().filter(function(n){ return n.id === self.hash(); })[0] || self.nodes().filter(function(n){ return n.parent() === null; })[0];}).extend({throttle: 10});
 				b.subscribe(function(v){if(a()!==v) a(v);});
-				a.subscribe(function(v){console.log("current changed")});
+				//a.subscribe(function(v){console.log("current changed")});
 				return a;
 			}());
 			this.breadcrumbs	= _(function(){
 				var x = [], t = self.current();
-				while ( t ){ x.unshift( { text: t.title(), href:"#"+t.id } ); t = self.nodes().filter(function(n){ return n.id === t.parent(); })[0]; }
+				while ( t ){ x.unshift( t ); t = self.nodes().filter(function(n){ return n.id === t.parent(); })[0]; }
 				return x[1] && x || [];
 			}).extend({throttle: 10});
 			this.bookmarks 		= _(function(){
@@ -78,7 +82,9 @@ var isPlainObject = jQuery.isPlainObject;
 		_create: function(){
 			var self = this;
 			try {
-				JSON.parse( localStorage.notes ).nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});
+				var json = JSON.parse( localStorage.notes );
+				json.tags.forEach(function(n){ Simplenote.Tag( $.extend(n,{smplnt:self}) );});
+				json.nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});
 			} catch( e ) {
 				this.root = Simplenote.Node({
 					smplnt : this,
@@ -97,13 +103,13 @@ var isPlainObject = jQuery.isPlainObject;
 					self.save.call(self);
 					$(e.target).is(".headline") && !$(e.target).parents("#addNode").length && ko.dataFor( e.target ).active(true);
 				},
-				"dblclick" : function(e){ $(e.target).is(".headline, .title") && self.hash( ko.dataFor(e.target).id );}
+				"dblclick" : function(e){ $(e.target).is(".headline, .title, .notes, .node-body") && self.hash( ko.dataFor(e.target).id );}
 			});			
 			this.pop = $("<audio>").attr({src:"snd/pop.mp3"}).appendTo("body")[0];
 			self.startPeriodicalSave();
 		},
 		attachElement : function(el,item){
-			console.log("NEW RENDER");
+			//console.log("NEW RENDER");
 			$(el).filter(".node").data("item",item);
 			item.element = $(el).filter(".node")[0];
 		},
@@ -131,111 +137,24 @@ var isPlainObject = jQuery.isPlainObject;
 			return self.addNodeTo( self.current(), a );
 		},
 		addNodeTo : function( b, a ){
-			return Simplenote.Node($.extend(a,{parent:b,smplnt:this}));
+			return Simplenote.Node($.extend(a,{parent:b.id,smplnt:this}));
+		},
+		removeSelected: function(){
+			var self = this;
+			Simplenote.confirm("Really delete all selected outline nodes?",function(a){
+				if (!a) return;
+				self.nodes.removeAll(self.selected());
+				self.save();
+			});
 		},
 		insertNodeAfter : function( b, a ){
 			return Simplenote.Node($.extend(a,{listStyleType:b.listStyleType(),parent:b.parent(),smplnt:this,after:b}));
 		},			
-		hotkeys : {
-			functions : {
-				"next" : function(e,self){
-					var x = $(this).parents("#list").length < 1 ? $("#list>li:visible").first().data("ko") : $(this).parents("li").last().nextALL("#list>li:visible").first().data("ko");
-					x && x.active && x.active( true );
-				},
-				"prev" : function(e,self){
-					var x = $(this).parents("#list").length < 1 ? $("#list>li:visible").last().data("ko") : $(this).parents("li").last().prevALL("#list>li:visible").last().data("ko");
-					x && x.active && x.active( true );
-				},
-				"addBelow" : function(e,self){
-					ko.dataFor(this).active(false);
-					self.insertNodeAfter( ko.dataFor( this ) );
-				},
-				"addChild" : function(e,self){
-					var a = ko.dataFor( this );
-					a.expanded( true );
-					self.addNodeTo( a );
-				},
-				"editNote" : function(){
-					var a = ko.dataFor( this );
-					a.expanded( true );
-					a.note(a.note()||"");
-					a.activeNote( true );
-				},
-				"editTitle" : function(){
-					ko.dataFor( this ).active(true);
-				},
-				"indent" : function(){
-					var a = ko.dataFor( this ),b;
-					if ( ! (b = $(this).parents(".node:first").prev()[0]) ) return;
-					a.active(false);
-					b = ko.dataFor( b );
-					b.expanded( true );
-					a.parent( b.id );
-					a.active(true);
-				},
-				"outdent" : function(){
-					var a = ko.dataFor( this ), b;
-					if ( ! ( b =$(this).parents(".node")[1] ) ) return;
-					a.active(false);
-					b = ko.dataFor( b );
-					a.parent( b.parent() );
-					a.active( true );
-				},
-				"toggleExpand" : function(){
-					ko.dataFor(this).toggleExpanded();
-				},
-				"zoomIn" : function(e,self){
-					var a = ko.dataFor( this );
-					a.active(false);
-					self.hash( a.id );
-					a.active(true);
-				},
-				"zoomOut" : function(e,self){
-					var a  = ko.dataFor( this );
-					a.active( false );
-					self.hash( self.current().parent() || "" );
-					a.active(true);
-				},
-				"backspace" : function(e,self){
-					this.innerHTML = Simplenote.Node.parse(this.innerHTML)
-					if ( this.innerHTML[0] ) return;
-					this.innerHTML = "";
-					var a = ko.dataFor( this );
-					if ( $(this).is(".notes") ){
-						a.active(true);
-						self.save();
-					} else if ( $(this).is(".title") ) {
-						if ( a.listStyleType()[2] ) return a.listStyleType.splice(2);
-						if ( a.listStyleType()[1] ) return a.listStyleType.splice(1);
-						if ( a.listStyleType()[0] ) return a.listStyleType.splice(0);
-						var b= ko.dataFor( $(this).parents(".node").first().findPrev(".node")[0] );
-						return self.nodes.remove(a), b.active(true);
-					}
-				}
-			},
-			hotkeys : [
-				{ shift : false, ctrl : true,  alt : false, key : 74,				      										action : "next" }, 			// j
-				{ shift : false, ctrl : true,  alt : false, key : "DOWN",  														action : "next" }, 			// down
-				{ shift : false, ctrl : true,  alt : false, key : 75,      														action : "prev" }, 			// k
-				{ shift : false, ctrl : true,  alt : false, key : "UP",    														action : "prev" }, 			// up
-				{ shift : false, ctrl : false, alt : false, key : "ENTER", 								is : ".title", 			action : "addBelow" }, 		// enter
-				{ shift : true , ctrl : false, alt : false, key : "ENTER", 								is : ".title",          action : "editNote" }, 		// shift enter
-				{ shift : true , ctrl : false, alt : false, key : "ENTER", 								is : ".notes",          action : "editTitle" },		// shift enter
-				{ shift : false, ctrl : false, alt : false, key : "TAB",   								is : ".title",			action : "indent" },   		// tab
-				{ shift : true,  ctrl : false, alt : false, key : "TAB",  								is : ".title",			action : "outdent" },		// shift tab
-				{ shift : false, ctrl : true,  alt : false, key : "ENTER", 								is : ".title, .notes",	action : "addChild" },	 	// ctrl enter
-				{ shift : false, ctrl : true,  alt : false, key : "SPACE",								is : ".title, .notes",	action : "toggleExpand" },	// ctrl space
-				{ shift : false, ctrl : false, alt : true , key : "RIGHT",								is : ".title, .notes",	action : "zoomIn" }, 		// alt right
-				{ shift : false, ctrl : false, alt : true , key : 70,									is : ".title, .notes",	action : "zoomIn" }, 		// alt f
-				{ shift : false, ctrl : false, alt : true , key : "LEFT",								is : ".title, .notes",	action : "zoomOut" }, 		// alt left
-				{ shift : false, ctrl : false, alt : true , key : 66,									is : ".title, .notes",	action : "zoomOut" }, 		// alt b
-				{ shift : false, ctrl : false, alt : false, key : "BACKSPACE",	pd:true,				is : ".title, .notes",  action : "backspace" },		// backspace
-				
-			]
-		},
+		hotkeys : notehotkeys,
 		toJSON : function(){
 			return {
-				nodes 	: this.nodes()
+				nodes 	: this.nodes(),
+				tags	: this.tags(),
 			}
 		}
 	},{
@@ -264,19 +183,43 @@ var isPlainObject = jQuery.isPlainObject;
 			n.hide().css({"border-radius":4,position:"fixed",top:"10px",left:"50%","margin-left":-w}).fadeIn( 100 ).delay( 4000 ).fadeOut( 100 );
 		},
 	});
-
+	/*
+	 * Simplenote.Tag
+	 */
+	Obj("Simplenote.Tag",{
+		_init: function(o){
+			this.name = _(o.name || o);
+			this.color = _(o.col || "black");
+			this.smplnt = o.smplnt;
+			this.smplnt.tags.push(this);
+		},
+		toJSON : function(){
+			return {
+				name : this.name(),
+				color : this.color()
+			};
+		}
+	},{
+		findByName : function(n,s){
+			var a = s.tags().filter(function(m){return m.name()===n;}); return a&&a[0]||0[0];
+		}
+	});
+	/*
+	 * Simplenote.Node
+	 */
 	Obj("Simplenote.Node",{
 		// private methods
 		_init: function(o){
-			console.log("new node");
+			//console.log("new node");
 			var self 			 	= this;
 			this.smplnt			 	= o.smplnt;
 			this.id				 	= o.id || uuid();
+			//console.log(o.parent)
 			this.parent     	 	= _((o.parent&&o.parent.id)||o.parent);
 			if ( o.parent === null ) { this.smplnt.root = this }
 			this.title 			 	= (function(){ var a = _( o.title|| ""); return _({ read: function(){ return a() }, write: function(v){a( Simplenote.Node.parse(v) ); } }); }());
 			this.note 		 	 	= (function(){ var a = _( o.note || "" ); return _({ read: function(){ return a(); }, write: function(v){ a( Simplenote.Node.parse(v) ); } }); }());
-			this.tags 			 	= _(o.tags||[]);
+			this.tags 			 	= _(o.tags&&o.tags.map(function(n){return Simplenote.Tag.findByName(n.name||n);})||[]);
 			this.deadline	     	= _(o.deadline&&new Date(o.deadline)||false);
 			this.files		 	 	= _(o.files||[]);
 			this.bookmarked  	 	= _(o.bookmarked||false);
@@ -286,7 +229,7 @@ var isPlainObject = jQuery.isPlainObject;
 			this.editingTitle    	= _(false);
 			this.active				= _(true);
 			this.activeNote			= _(false);
-			this.isCurrent			= _(function(){ return self.smplnt.current() === self });
+			this.selected			= _(false);
 			this.children			= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id});})
 			this.hasNote		 	= _(function(){ return self.note().length; });
 			this.hasChildren		= _(function(){ return self.children().length; });
@@ -303,36 +246,38 @@ var isPlainObject = jQuery.isPlainObject;
 		},
 		alarm : function(){
 			this.deadline(false);
-			self.smplnt.pop.play();
+			this.smplnt.pop.play();
 			Simplenote.alert( this.title() );
 			return"";
 		},
 		editTags : function(){
-			var self = this;
-			Simplenote.prompt("enter tags as a comma-seperated list", this.tags().join(", "),function(a){self.tags(a&&a.split(/\s*,\s*/)||[]);});
+			alert("coming soon")
+			//console.log( this, arguments );
+			//var self = this;
+			//Simplenote.prompt("enter tags as a comma-seperated list", this.tags().join(", "),function(a){self.tags(a&&a.split(/\s*,\s*/)||[]);});
 		},
 		editDeadline : function(){
 			var self = this;
 			Simplenote.prompt("enter deadline", this.deadline()||new Date,function(a){self.deadline(Date.parse(a))});
 		},
 		editFiles : function(){
-			
+			alert("coming soon")
 		},
-		toggleBookmark : function(){
+		open : function(){
+			this.smplnt.hash( this.id );
+		},
+		toggleBookmarked : function(){
 			this.bookmarked(!this.bookmarked());
-		},
-		toggleNote : function(){
-			this.showNote(!this.showNote());
 		},
 		toggleExpanded : function(){
 			this.expanded( (this.hasNote() || this.hasChildren) && !this.expanded() );
 		},
+		toggleSelected : function(){
+			this.selected(!this.selected());
+		},
 		remove : function(){
 			var self = this;
 			Simplenote.confirm("really delete this node?", function(a){ a&&self.smplnt.nodes.remove( self );});
-		},
-		editDetailed : function(){
-		
 		},
 		toJSON : function(){
 			return {
