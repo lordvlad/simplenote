@@ -11,6 +11,11 @@ function Obj(a,b,c){
  * extend knockout
  */
 jQuery.extend(true,ko.bindingHandlers,{
+	dblclick : {
+		init : function( el, acc, all, obj ){
+			$(el).on("dblclick", function(){ acc().call(obj);});
+		}
+	},
 	editable : {
 		init : function( el, acc ){
 			$(el).attr("contenteditable",true).html(acc()()).blur(function(){acc()($(el).html().replace(/&nbsp;$|^&nbsp;|^\s*|\s*$/g,""));}).focus(function(){$(el).html(acc()()||"");});
@@ -55,19 +60,31 @@ var isPlainObject = jQuery.isPlainObject;
 		_init: function(){
 			var self 		 	= this;
 			this.nodes		 	= _([]);
-			this.selected		= _(function(){return self.nodes().filter(function(n){ return n.selected(); });});			
 			this.tags			= _([]);
-			this.hash 			= (function(){
-				var a = _(); function b(c){					
-					return c&&c.match?(location.hash="#"+c):a(location.hash&&location.hash.match(/.(.*)/)&&location.hash.match(/.(.*)/)[1]||"");
-				}; a.subscribe(b); window.onhashchange=b; return b(), a;
+			this.selected		= _(function(){return self.nodes().filter(function(n){ return n.selected(); });});			
+			this.current 		= (function(){
+				var a = _(false); return _({read: function(){ return a(); }, write : function(v){ a(v&&v.id&&v||self.nodes().filter(function(n){return n.id===v})[0]);} });
 			}());
-			this.current 		= (function(){	
-				var a = _(false), b = _(function(){ return self.nodes().filter(function(n){ return n.id === self.hash(); })[0] || self.nodes().filter(function(n){ return n.parent() === null; })[0];}).extend({throttle: 10});
-				b.subscribe(function(v){if(a()!==v) a(v);});
-				//a.subscribe(function(v){console.log("current changed")});
-				return a;
-			}());
+			this.timeout 		= null;
+			this.interval 		= null;
+			Simplenote.Route.addRoute(/id\:([\w\d-]{36})/i, function(m){ self.current(m[1]); });
+			Simplenote.Route.addRoute(/^$/, function(m){ self.current( self.root ); });
+			this.filter = {
+				tags : _([]),
+				date : {
+					compare : _(""),
+					withDate : _(0)
+				},
+				title : _("")
+			};
+			this.filterFn = _(function(){
+				return function(node){
+					var t = self.filter.tags(), T = node.tags().map(function(n){return n.name;}), c = self.filter.date.compare(), d = self.filter.date.withDate(), D = node.deadline(), s = self.filter.title(), r = s && new RegExp( s, "i" );
+					return ( t.length ? ( T.length ? t.every(function(n){return ~T.indexOf(n);}) : false ) : true ) &&
+						( d ? ( D ? ( c[0]==="a"?D>d:d>D ) : false ) : true ) &&
+						( r ? r.test( node.title() ) : true );
+				};
+			});
 			this.breadcrumbs	= _(function(){
 				var x = [], t = self.current();
 				while ( t ){ x.unshift( t ); t = self.nodes().filter(function(n){ return n.id === t.parent(); })[0]; }
@@ -76,8 +93,6 @@ var isPlainObject = jQuery.isPlainObject;
 			this.bookmarks 		= _(function(){
 				return self.nodes()[1] ? self.nodes().filter(function(n){return n.bookmarked();}) : [];
 			}).extend({throttle: 10});
-			this.timeout 		= null;
-			this.interval 		= null;
 		},
 		_create: function(){
 			var self = this;
@@ -103,13 +118,13 @@ var isPlainObject = jQuery.isPlainObject;
 					self.save.call(self);
 					$(e.target).is(".headline") && !$(e.target).parents("#addNode").length && ko.dataFor( e.target ).active(true);
 				},
-				"dblclick" : function(e){ $(e.target).is(".headline, .title, .notes, .node-body") && self.hash( ko.dataFor(e.target).id );}
+				//"dblclick" : function(e){ $(e.target).is(".headline, .title, .notes, .node-body") && Simplenote.Route.setHash("id", ko.dataFor(e.target).id );}
 			});			
 			this.pop = $("<audio>").attr({src:"snd/pop.mp3"}).appendTo("body")[0];
 			self.startPeriodicalSave();
+			Simplenote.Route.checkRoute();
 		},
 		attachElement : function(el,item){
-			//console.log("NEW RENDER");
 			$(el).filter(".node").data("item",item);
 			item.element = $(el).filter(".node")[0];
 		},
@@ -146,6 +161,12 @@ var isPlainObject = jQuery.isPlainObject;
 				self.nodes.removeAll(self.selected());
 				self.save();
 			});
+		},
+		unselectSelected : function(){
+			this.selected().forEach(function(n){ n.selected(false); });
+		},
+		invertSelected : function(){
+			this.nodes().forEach(function(n){ $(n.element).is(":visible") && n.selected(!n.selected()); });
 		},
 		insertNodeAfter : function( b, a ){
 			return Simplenote.Node($.extend(a,{listStyleType:b.listStyleType(),parent:b.parent(),smplnt:this,after:b}));
@@ -184,6 +205,19 @@ var isPlainObject = jQuery.isPlainObject;
 		},
 	});
 	/*
+	 * Simplenote.Route
+	 */
+	Obj("Simplenote.Route",{},{
+		routes : [],
+		checkRoute : function(){var v=Simplenote.Route.hash(); Simplenote.Route.routes.forEach(function(r,m){ if (m=v.match(r.expr) ) {r.action(m)}; }); },
+		hash : (function(){var a=_("");function b(v){v&&v.match?(location.hash="#"+v,Simplenote.Route.checkRoute()):a(location.hash.replace(/^#/,""));};return (window.onhashchange=b)(),a.subscribe(b),a;}()),
+		addHash : function(k,v){ Simplenote.Route.hash( Simplenote.Route.hash()+(Simplenote.Route.hash().length?"/":"")+(v?k+":":"")+v ); },
+		removeHash : function(k){ var r = new RegExp( "(?:\/)?"+k+"\:[^\/]+","i" ); Simplenote.routes.hash( Simplenote.routes.hash().replace( r, "" ) ); },
+		setHash : function(k,v){ Simplenote.Route.hash().match(new RegExp(k,"i"))?Simplenote.Route.hash( Simplenote.Route.hash().replace(/\w+\:([^\/]+)/,function(m){m=m.match(/(\w+\:)(.*)/); return m[1]+v;}) ):Simplenote.Route.addHash(k,v); },
+		addRoute : function(k,v){ Simplenote.Route.routes.push( { "expr" : k.expr || k, "action" : k.action || v } ); Simplenote.Route.checkRoute(); },
+		removeRoute : function(k){ Simplenote.Route.routes.forEach(function(r,i){ if ( r.expr.toString() === k.toString() ) delete Simplenote.Route.routes[i]; }); } 
+	});
+	/*
 	 * Simplenote.Tag
 	 */
 	Obj("Simplenote.Tag",{
@@ -214,7 +248,6 @@ var isPlainObject = jQuery.isPlainObject;
 			var self 			 	= this;
 			this.smplnt			 	= o.smplnt;
 			this.id				 	= o.id || uuid();
-			//console.log(o.parent)
 			this.parent     	 	= _((o.parent&&o.parent.id)||o.parent);
 			if ( o.parent === null ) { this.smplnt.root = this }
 			this.title 			 	= (function(){ var a = _( o.title|| ""); return _({ read: function(){ return a() }, write: function(v){a( Simplenote.Node.parse(v) ); } }); }());
@@ -230,7 +263,8 @@ var isPlainObject = jQuery.isPlainObject;
 			this.active				= _(true);
 			this.activeNote			= _(false);
 			this.selected			= _(false);
-			this.children			= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id});})
+			this.display			= _(function(){ return self.smplnt.filterFn()( self )?"block":"none"; });
+			this.children			= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id})});
 			this.hasNote		 	= _(function(){ return self.note().length; });
 			this.hasChildren		= _(function(){ return self.children().length; });
 			this.cssClass			= _(function(){ return self.listStyleType().concat("node").filter(Boolean).join(" "); });
@@ -252,9 +286,6 @@ var isPlainObject = jQuery.isPlainObject;
 		},
 		editTags : function(){
 			alert("coming soon")
-			//console.log( this, arguments );
-			//var self = this;
-			//Simplenote.prompt("enter tags as a comma-seperated list", this.tags().join(", "),function(a){self.tags(a&&a.split(/\s*,\s*/)||[]);});
 		},
 		editDeadline : function(){
 			var self = this;
@@ -264,7 +295,7 @@ var isPlainObject = jQuery.isPlainObject;
 			alert("coming soon")
 		},
 		open : function(){
-			this.smplnt.hash( this.id );
+			Simplenote.Route.setHash( "id", this.id );
 		},
 		toggleBookmarked : function(){
 			this.bookmarked(!this.bookmarked());
@@ -308,7 +339,7 @@ var isPlainObject = jQuery.isPlainObject;
 		}
 	});	
 	
-}(function(v){return v&&((v.call||v.read)&&ko.computed(v)||v.map&&ko.observableArray(v))||ko.observable(v)},(function(){ var a = ko.observable(0); setInterval(function(){a(new Date());},1e3); return a; }()),a=(function(c,b,e){c=[],b=function(a){return a?(a^Math.random()*16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,b)};return function(){while(~c.indexOf(e=b()));return c.push(e),e}}())
+}(function(v){return v&&((v.call||v.read||v.read||v.write)&&ko.computed(v)||v.map&&ko.observableArray(v))||ko.observable(v)},(function(){ var a = ko.observable(0); setInterval(function(){a(new Date());},1e3); return a; }()),a=(function(c,b,e){c=[],b=function(a){return a?(a^Math.random()*16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,b)};return function(){while(~c.indexOf(e=b()));return c.push(e),e}}())
 ));
 
 // Get the party started

@@ -197,7 +197,17 @@ i[class^=icon][title], .bullet{
 						content: "";
 					}
 				
-			
+			#bookmarkslist > i {
+				margin-left: .5em;
+				color: white;
+			}
+			#tagslist {
+				text-align: right;
+			}
+			#tagslist > i {
+				color: white;
+				margin-right: 1em;
+			}
 			#bookmarks {
 				margin-top: .4em;
 				width: 50px;
