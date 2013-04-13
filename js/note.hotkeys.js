@@ -1,12 +1,10 @@
 notehotkeys = {
 	functions : {
 		"next" : function(e,self){
-			var x = $(this).parents("#list").length < 1 ? $("#list>li:visible").first().data("ko") : $(this).parents("li").last().nextALL("#list>li:visible").first().data("ko");
-			x && x.active && x.active( true );
+			var a = $(this).findNext(".node:visible"); a.length && (a = ko.dataFor(a[0])) && a.active(true);
 		},
 		"prev" : function(e,self){
-			var x = $(this).parents("#list").length < 1 ? $("#list>li:visible").last().data("ko") : $(this).parents("li").last().prevALL("#list>li:visible").last().data("ko");
-			x && x.active && x.active( true );
+			var a = $(this).parents(".node:visible:first").findPrev(".node:visible"); a.length && (a = ko.dataFor(a[0])) && a.active(true);
 		},
 		"addBelow" : function(e,self){
 			ko.dataFor(this).active(false);
@@ -59,7 +57,7 @@ notehotkeys = {
 			a.active(true);
 		},
 		"backspace" : function(e,self){
-			this.innerHTML = Simplenote.Node.parse(this.innerHTML)
+			this.innerHTML = Simplenote.Node.parseHeadline(this.innerHTML)
 			if ( this.innerHTML[0] ) return;
 			this.innerHTML = "";
 			var a = ko.dataFor( this );

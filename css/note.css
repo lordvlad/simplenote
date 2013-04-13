@@ -45,6 +45,7 @@ i[class^=icon][title], .bullet{
 				-webkit-box-shadow: 0 0 5px #aaa;
 				box-shadow: 0 0 5px #aaa;
 				border-radius: 4px;
+				padding-top: 1em;
 			}
 				
 				#sheet {
@@ -183,6 +184,7 @@ i[class^=icon][title], .bullet{
 					padding: 10px;
 					color: white;
 					background: #5E7D4D;/*#C74223;*/
+					border-radius: 4px;
 				}
 				#groupActions .actions, #sheet > div > div > .actions {
 					display: inline;
@@ -195,48 +197,56 @@ i[class^=icon][title], .bullet{
 					}
 					#breadcrumbs a:first-child:before{
 						content: "";
-					}
-				
-			#bookmarkslist > i {
-				margin-left: .5em;
-				color: white;
-			}
-			#tagslist {
+					}			
+			#tags {
 				text-align: right;
-			}
-			#tagslist > i {
-				color: white;
-				margin-right: 1em;
+				margin-right: .2em;
+				margin-top: 1em;
+				padding-top: 10px;
 			}
 			#bookmarks {
-				margin-top: .4em;
-				width: 50px;
+				margin-top: 1em;
+				padding-top: 10px;
+				margin-left: .2em;
 			}
-			#bookmarks a,#bookmarks a:visited, #breadcrumbs a, #breadcrumbs a:visited {
-				color: #232621;
-				display: inline-block;
+			#breadcrumbs a, #breadcrumbs a:visited, #bookmarks a, #bookmarks a:visited, #tagslist a, #tagslist a:visited {
+				color: white;
 				text-decoration: none;
-			}
-			#bookmarks a,#bookmarks a:visited {
-				padding: .2em .4em .2em .4em;
-				background: white;
-				overflow: hidden;
-				max-width: 50px;
-				min-width: 2em;
 				white-space: nowrap;
+			}
+			#bookmarks a, #bookmarks a:visited, #tagslist a, #tagslist a:visited {
+				display: block;
+			}
+			#breadcrumbs a, #breadcrumbs a:visited {
+				color: #232621;
+			}
+			#breadcrumbs span, #bookmarks span, #tagslist span {
+				max-width: 4em;
+				display: inline-block;
+				overflow: hidden;
 				text-overflow: ellipsis;
-				border-top-right-radius: 4px;
-				border-bottom-right-radius: 4px;
-				margin-bottom: .2em;
 			}
-			#breadcrumbs a:hover, #bradcrumbs a:active {
+			#breadcrumbs a:hover, #bookmarks a:hover, #tagslist a:hover {
 				color: #E0D1A3;
-			}
-			#bookmarks a:active, #bookmarks a:hover, #bookmarks a.active {
-				background: #E0D1A3;
 			}
 		
 		#feet {
 		
 		}
-				
+.menu {
+	background: white;
+	border: solid 1px #ddd;
+	padding: .4em;
+	border-radius: 4px;
+	box-shadow: 0 0 5px #ddd;
+	position: absolute;
+	display: none;
+}
+.menu a, .menu a:visited {
+	color: #232621;
+	text-decoration: none;
+	display: block;
+}
+.menu a:hover, .menu a:active {
+	color: #E0D1A3;
+}

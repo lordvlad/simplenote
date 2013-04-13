@@ -1,54 +1,3 @@
-/*
- * creating standartized objects
- */
-
-function Obj(a,b,c){
-	"use strict"; (function d(a,b,c){ return a[0]?(c=a.shift(),a[0]?d(a,b[c]=b[c]||{}):b[c]=b[c]||{}):!1; }(a.split(/\./).slice(0,-1),window));
-	return $.extend( true, Function("return ("+a+"="+"function(a){if(!(this instanceof "+a+")){return new "+a+"(a);}this._init&&this._init.call(this,a);});")(),{prototype:b},c);
-}
-
-/* 
- * extend knockout
- */
-jQuery.extend(true,ko.bindingHandlers,{
-	dblclick : {
-		init : function( el, acc, all, obj ){
-			$(el).on("dblclick", function(){ acc().call(obj);});
-		}
-	},
-	editable : {
-		init : function( el, acc ){
-			$(el).attr("contenteditable",true).html(acc()()).blur(function(){acc()($(el).html().replace(/&nbsp;$|^&nbsp;|^\s*|\s*$/g,""));}).focus(function(){$(el).html(acc()()||"");});
-			acc().subscribe(function(){$(el).html(acc()());});
-		},
-	},
-	sortable : {
-		init: function( el, acc, all, obj, cntx ){
-			$( el ).sortable({
-				items : ".node",
-				handle: ".bullet",				
-				placeholder: "sortable-placeholder",
-				connectWith: ".children",
-				start : function( e, ui ){ ko.dataFor(ui.item[0]).expanded(false); },
-				stop : function(e, ui ){
-					return;
-				}
-			});
-		}
-	},
-});
-/*
- * extend jQuery's index function
- */
-(function($){
-	$.fn.oldIndex = $.fn.index;
-	$.fn.index = function(){
-		if (! $.isNumeric(arguments[0]) ) return $.fn.oldIndex.apply(this,arguments);
-		return this.siblings().addBack().eq(arguments[0]).before(this)
-	};
-}(jQuery));
-
-
 var isPlainObject = jQuery.isPlainObject;
 (function(_,time,uuid){
 	"use strict";
@@ -67,8 +16,6 @@ var isPlainObject = jQuery.isPlainObject;
 			}());
 			this.timeout 		= null;
 			this.interval 		= null;
-			Simplenote.Route.addRoute(/id\:([\w\d-]{36})/i, function(m){ self.current(m[1]); });
-			Simplenote.Route.addRoute(/^$/, function(m){ self.current( self.root ); });
 			this.filter = {
 				tags : _([]),
 				date : {
@@ -79,7 +26,7 @@ var isPlainObject = jQuery.isPlainObject;
 			};
 			this.filterFn = _(function(){
 				return function(node){
-					var t = self.filter.tags(), T = node.tags().map(function(n){return n.name;}), c = self.filter.date.compare(), d = self.filter.date.withDate(), D = node.deadline(), s = self.filter.title(), r = s && new RegExp( s, "i" );
+					var t = self.filter.tags(), T = node.tags(), c = self.filter.date.compare(), d = self.filter.date.withDate(), D = node.deadline(), s = self.filter.title(), r = s && new RegExp( s, "i" );
 					return ( t.length ? ( T.length ? t.every(function(n){return ~T.indexOf(n);}) : false ) : true ) &&
 						( d ? ( D ? ( c[0]==="a"?D>d:d>D ) : false ) : true ) &&
 						( r ? r.test( node.title() ) : true );
@@ -88,37 +35,36 @@ var isPlainObject = jQuery.isPlainObject;
 			this.breadcrumbs	= _(function(){
 				var x = [], t = self.current();
 				while ( t ){ x.unshift( t ); t = self.nodes().filter(function(n){ return n.id === t.parent(); })[0]; }
-				return x[1] && x || [];
+				return x;
 			}).extend({throttle: 10});
+			
 			this.bookmarks 		= _(function(){
 				return self.nodes()[1] ? self.nodes().filter(function(n){return n.bookmarked();}) : [];
 			}).extend({throttle: 10});
+			
+			Simplenote.Route.addRoute(/id\:([\w\d-]{36})/i, function(m){ self.current(m[1]); },function(){ self.current(self.root);});
+			Simplenote.Route.addRoute(/tags\:([^\/]*)/,function(m){ m = m&&m[1].split(/\s*,\s*/)||false; m && self.filter.tags(m.map(function(n){return Simplenote.Tag.findByName(n,self)})) || self.filter.tags([]); },function(){self.filter.tags([]);});
 		},
 		_create: function(){
 			var self = this;
-			try {
+//			try {
 				var json = JSON.parse( localStorage.notes );
 				json.tags.forEach(function(n){ Simplenote.Tag( $.extend(n,{smplnt:self}) );});
 				json.nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});
-			} catch( e ) {
+/*			} catch( e ) {
 				this.root = Simplenote.Node({
 					smplnt : this,
 					parent : _(null),
 					title  : _("home"),
 				});
-			}
+			}*/
 			$( document ).on( "click", ".headline", function(e){
 				var t = $(e.target);
 				if (t.is(":not(.bullet), :not(.action), :not(.ellipsis), :not(.additional)")){ t.parents(".headline").find("title").focus(); }
 			});
 			$( document ).on({
 				"keydown" : wre.hotKeyHandler( this.hotkeys, this ),
-				"keyup" : function(e){ self.save.call(self); },
-				"click" : function(e){ 
-					self.save.call(self);
-					$(e.target).is(".headline") && !$(e.target).parents("#addNode").length && ko.dataFor( e.target ).active(true);
-				},
-				//"dblclick" : function(e){ $(e.target).is(".headline, .title, .notes, .node-body") && Simplenote.Route.setHash("id", ko.dataFor(e.target).id );}
+				"keyup, click" : function(e){ self.save.call(self); },
 			});			
 			this.pop = $("<audio>").attr({src:"snd/pop.mp3"}).appendTo("body")[0];
 			self.startPeriodicalSave();
@@ -209,12 +155,18 @@ var isPlainObject = jQuery.isPlainObject;
 	 */
 	Obj("Simplenote.Route",{},{
 		routes : [],
-		checkRoute : function(){var v=Simplenote.Route.hash(); Simplenote.Route.routes.forEach(function(r,m){ if (m=v.match(r.expr) ) {r.action(m)}; }); },
-		hash : (function(){var a=_("");function b(v){v&&v.match?(location.hash="#"+v,Simplenote.Route.checkRoute()):a(location.hash.replace(/^#/,""));};return (window.onhashchange=b)(),a.subscribe(b),a;}()),
+		checkRoute : function(){var v=Simplenote.Route.hash(); Simplenote.Route.routes.forEach(function(r,m){ if (m=v.match(r.expr) ) {r.action(m)} else if(r.fail){r.fail();}; }); },
+		hash : (function(){var a=_("");function b(v){(typeof v)[0]==="s"?(location.hash="#"+v.replace(/\/$/,""),Simplenote.Route.checkRoute()):a(location.hash.replace(/^#/,"").replace(/\/$/,""));};return (window.onhashchange=b)(),a.subscribe(b),a;}()),
+		getHash : function(k){ var m=Simplenote.Route.hash().match( new RegExp(k+"\:([^\/]*)","i") ); return m&&m[1]||0[0];},
 		addHash : function(k,v){ Simplenote.Route.hash( Simplenote.Route.hash()+(Simplenote.Route.hash().length?"/":"")+(v?k+":":"")+v ); },
-		removeHash : function(k){ var r = new RegExp( "(?:\/)?"+k+"\:[^\/]+","i" ); Simplenote.routes.hash( Simplenote.routes.hash().replace( r, "" ) ); },
+		removeHash : function(k){ var r = new RegExp( "(?:\/)?"+k+"\:[^\/]+","i" ); Simplenote.Route.hash( Simplenote.Route.hash().replace( r, "" ) ); },
+		removeFromHash : function(k,v,r,a){
+			var r = new RegExp( "("+k+"\:)([^\/]+)","i" ); Simplenote.Route.hash(Simplenote.Route.hash().replace(r,function(m){ m=m.match(r); a=m[2].split(/\s*,\s*/);a.splice(a.indexOf(v),1);return a.length?m[1]+a.join(","):"";}));
+		},
+		toggleInHash : function(k,v,r){((r = Simplenote.Route).getHash(k) && r.getHash(k).match( new RegExp( v )))?r.removeFromHash(k,v):r.addToHash(k,v)},
+		addToHash : function(k,v){ Simplenote.Route.setHash(k,[Simplenote.Route.getHash(k),v].filter(Boolean).join());},
 		setHash : function(k,v){ Simplenote.Route.hash().match(new RegExp(k,"i"))?Simplenote.Route.hash( Simplenote.Route.hash().replace(/\w+\:([^\/]+)/,function(m){m=m.match(/(\w+\:)(.*)/); return m[1]+v;}) ):Simplenote.Route.addHash(k,v); },
-		addRoute : function(k,v){ Simplenote.Route.routes.push( { "expr" : k.expr || k, "action" : k.action || v } ); Simplenote.Route.checkRoute(); },
+		addRoute : function(k,v,f){ Simplenote.Route.routes.push( { "expr" : k.expr || k, "action" : k.action || v, "fail" : k.fail || f } ); Simplenote.Route.checkRoute(); },
 		removeRoute : function(k){ Simplenote.Route.routes.forEach(function(r,i){ if ( r.expr.toString() === k.toString() ) delete Simplenote.Route.routes[i]; }); } 
 	});
 	/*
@@ -223,7 +175,7 @@ var isPlainObject = jQuery.isPlainObject;
 	Obj("Simplenote.Tag",{
 		_init: function(o){
 			this.name = _(o.name || o);
-			this.color = _(o.col || "black");
+			this.color = _(o.color || "white");
 			this.smplnt = o.smplnt;
 			this.smplnt.tags.push(this);
 		},
@@ -232,6 +184,9 @@ var isPlainObject = jQuery.isPlainObject;
 				name : this.name(),
 				color : this.color()
 			};
+		},
+		toggleThisInFilter : function(){
+			Simplenote.Route.toggleInHash("tags",this.name());
 		}
 	},{
 		findByName : function(n,s){
@@ -250,9 +205,9 @@ var isPlainObject = jQuery.isPlainObject;
 			this.id				 	= o.id || uuid();
 			this.parent     	 	= _((o.parent&&o.parent.id)||o.parent);
 			if ( o.parent === null ) { this.smplnt.root = this }
-			this.title 			 	= (function(){ var a = _( o.title|| ""); return _({ read: function(){ return a() }, write: function(v){a( Simplenote.Node.parse(v) ); } }); }());
-			this.note 		 	 	= (function(){ var a = _( o.note || "" ); return _({ read: function(){ return a(); }, write: function(v){ a( Simplenote.Node.parse(v) ); } }); }());
-			this.tags 			 	= _(o.tags&&o.tags.map(function(n){return Simplenote.Tag.findByName(n.name||n);})||[]);
+			this.title 			 	= (function(){ var a = _( o.title|| ""); return _({ read: function(){ return a() }, write: function(v){a( Simplenote.Node.parseHeadline(v) ); } }); }());
+			this.note 		 	 	= (function(){ var a = _( o.note || "" ); return _({ read: function(){ return a(); }, write: function(v){ a( Simplenote.Node.parseNote(v) ); } }); }());
+			this.tags 			 	= _(o.tags&&o.tags.map(function(n){return Simplenote.Tag.findByName(n.name||n,self.smplnt);})||[]);
 			this.deadline	     	= _(o.deadline&&new Date(o.deadline)||false);
 			this.files		 	 	= _(o.files||[]);
 			this.bookmarked  	 	= _(o.bookmarked||false);
@@ -263,8 +218,8 @@ var isPlainObject = jQuery.isPlainObject;
 			this.active				= _(true);
 			this.activeNote			= _(false);
 			this.selected			= _(false);
-			this.display			= _(function(){ return self.smplnt.filterFn()( self )?"block":"none"; });
 			this.children			= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id})});
+			this.display			= _(function(){ return (self.smplnt.filterFn()( self )||self.children().some(function(n){return n.display()==="block";}))?"block":"none"; });
 			this.hasNote		 	= _(function(){ return self.note().length; });
 			this.hasChildren		= _(function(){ return self.children().length; });
 			this.cssClass			= _(function(){ return self.listStyleType().concat("node").filter(Boolean).join(" "); });
@@ -284,12 +239,17 @@ var isPlainObject = jQuery.isPlainObject;
 			Simplenote.alert( this.title() );
 			return"";
 		},
-		editTags : function(){
-			alert("coming soon")
+		editTags : function(n,e){
+			var self = this;
+			$("#tagsMenu")
+				.trigger("position", e.target )
+				.on("menuselect",function(e,ui){
+					if ( ! ui || !ui.item ) return;
+					if ( ! self.tags.remove( ui.item ).length ) { self.tags.push( ui.item ); }
+				});
 		},
 		editDeadline : function(){
-			var self = this;
-			Simplenote.prompt("enter deadline", this.deadline()||new Date,function(a){self.deadline(Date.parse(a))});
+			this.self.deadline(Date.parse(prompt("enter deadline", this.deadline())));
 		},
 		editFiles : function(){
 			alert("coming soon")
@@ -307,8 +267,7 @@ var isPlainObject = jQuery.isPlainObject;
 			this.selected(!this.selected());
 		},
 		remove : function(){
-			var self = this;
-			Simplenote.confirm("really delete this node?", function(a){ a&&self.smplnt.nodes.remove( self );});
+			confirm("really delete this node?") && this.smplnt.nodes.remove( this );
 		},
 		toJSON : function(){
 			return {
@@ -329,13 +288,22 @@ var isPlainObject = jQuery.isPlainObject;
 		
 	},{
 		// static methods
-		parse : function(a){
+		parseHeadline : function(a){
 			return a
 				.replace(/<a[^>]*>|<\/a>/g,"").replace(/(http\:\/\/)?(www\.[\w.]+)/ig,function(m){return "<a href=\""+(m.match(/http/i)?m:"http://"+m)+"\">"+m+"</a>"}) // links
 				.replace(/<b>|<\/b>/g,"").replace(/\*[\w‰ˆ¸ƒ÷‹ﬂ\s]+\*/ig,function(m){return "<b>"+m+"</b>"}) // bold
 				.replace(/<u>|<\/u>/g,"").replace(/\_[\w‰ˆ¸ƒ÷‹ﬂ\s]+\_/ig,function(m){return "<u>"+m+"</u>"}) // underline
 				.replace(/<i>|<\/i>/g,"").replace(/\/[\w‰ˆ¸ƒ÷‹ﬂ\s]+\//ig,function(m){return "<i>"+m+"</i>"}) // italics
 				.replace(/<br>$|<br\/>$/,"")
+		},
+		parseNote : function(a){
+			return Simplenote.Node.parseHeadline(a);
+		},
+		parsePaste : function(a){
+			
+		},
+		findById : function(id,s,a){
+			a=s.nodes().filter(function(n){return n.id===id;}); return a&&a[0]||0[0];
 		}
 	});	
 	
