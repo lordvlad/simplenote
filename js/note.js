@@ -165,7 +165,7 @@ var isPlainObject = jQuery.isPlainObject;
 		},
 		toggleInHash : function(k,v,r){((r = Simplenote.Route).getHash(k) && r.getHash(k).match( new RegExp( v )))?r.removeFromHash(k,v):r.addToHash(k,v)},
 		addToHash : function(k,v){ Simplenote.Route.setHash(k,[Simplenote.Route.getHash(k),v].filter(Boolean).join());},
-		setHash : function(k,v){ Simplenote.Route.hash().match(new RegExp(k,"i"))?Simplenote.Route.hash( Simplenote.Route.hash().replace(/\w+\:([^\/]+)/,function(m){m=m.match(/(\w+\:)(.*)/); return m[1]+v;}) ):Simplenote.Route.addHash(k,v); },
+		setHash : function(k,v,r){ (r=Simplenote.Route).hash().match(new RegExp(k,"i"))?r.hash( r.hash().replace(new RegExp(k+"\:([^\/]+)","i"),function(m){m=m.match(/(\w+\:)([^\/])/);return m[1]+v;}) ):r.addHash(k,v); },
 		addRoute : function(k,v,f){ Simplenote.Route.routes.push( { "expr" : k.expr || k, "action" : k.action || v, "fail" : k.fail || f } ); Simplenote.Route.checkRoute(); },
 		removeRoute : function(k){ Simplenote.Route.routes.forEach(function(r,i){ if ( r.expr.toString() === k.toString() ) delete Simplenote.Route.routes[i]; }); } 
 	});
@@ -174,10 +174,12 @@ var isPlainObject = jQuery.isPlainObject;
 	 */
 	Obj("Simplenote.Tag",{
 		_init: function(o){
+			var self = this;
 			this.name = _(o.name || o);
 			this.color = _(o.color || "white");
 			this.smplnt = o.smplnt;
 			this.smplnt.tags.push(this);
+			this.inFilter = _(function(){return ~self.smplnt.filter.tags().indexOf(self);});
 		},
 		toJSON : function(){
 			return {
@@ -218,6 +220,7 @@ var isPlainObject = jQuery.isPlainObject;
 			this.active				= _(true);
 			this.activeNote			= _(false);
 			this.selected			= _(false);
+			this.isCurrent			= _(function(){ return self === self.smplnt.current(); });
 			this.children			= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id})});
 			this.display			= _(function(){ return (self.smplnt.filterFn()( self )||self.children().some(function(n){return n.display()==="block";}))?"block":"none"; });
 			this.hasNote		 	= _(function(){ return self.note().length; });
