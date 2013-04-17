@@ -57,7 +57,7 @@ notehotkeys = {
 			a.active(true);
 		},
 		"backspace" : function(e,self){
-			this.innerHTML = Simplenote.Node.parseHeadline(this.innerHTML)
+			//this.innerHTML = Simplenote.Node.parseHeadline(this.innerHTML)
 			if ( this.innerHTML[0] ) return;
 			this.innerHTML = "";
 			var a = ko.dataFor( this );

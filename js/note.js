@@ -47,17 +47,17 @@ var isPlainObject = jQuery.isPlainObject;
 		},
 		_create: function(){
 			var self = this;
-//			try {
+			try {
 				var json = JSON.parse( localStorage.notes );
 				json.tags.forEach(function(n){ Simplenote.Tag( $.extend(n,{smplnt:self}) );});
 				json.nodes.forEach(function(n){ Simplenote.Node( $.extend(n,{smplnt:self}) );});
-/*			} catch( e ) {
+			} catch( e ) {
 				this.root = Simplenote.Node({
 					smplnt : this,
 					parent : _(null),
 					title  : _("home"),
 				});
-			}*/
+			}
 			$( document ).on( "click", ".headline", function(e){
 				var t = $(e.target);
 				if (t.is(":not(.bullet), :not(.action), :not(.ellipsis), :not(.additional)")){ t.parents(".headline").find("title").focus(); }
@@ -70,6 +70,17 @@ var isPlainObject = jQuery.isPlainObject;
 			self.startPeriodicalSave();
 			Simplenote.Route.checkRoute();
 		},
+		liststyletypes : [
+			{ name : "none", value : [] },
+			{ name : "1, 2, 3", value: ["decimal"] },
+			{ name : "1., 2., 3.", value: ["decimal","dot"] },
+			{ name : "1.1, 1.2, 1.3", value : ["decimal","dot","add"] },
+			{ name : "a, b, c", value: ["lowerAlpha"] },
+			{ name : "(a), (b), (c)", value : ["lowerAlpha","dot"] },
+			{ name : "A, B, C", value: ["upperAlpha"] },
+			{ name : "(A), (B), (C)", value : ["upperAlpha","dot"] },
+			
+		],
 		attachElement : function(el,item){
 			$(el).filter(".node").data("item",item);
 			item.element = $(el).filter(".node")[0];
@@ -100,23 +111,38 @@ var isPlainObject = jQuery.isPlainObject;
 		addNodeTo : function( b, a ){
 			return Simplenote.Node($.extend(a,{parent:b.id,smplnt:this}));
 		},
-		removeSelected: function(){
-			var self = this;
-			Simplenote.confirm("Really delete all selected outline nodes?",function(a){
-				if (!a) return;
-				self.nodes.removeAll(self.selected());
-				self.save();
-			});
-		},
-		unselectSelected : function(){
-			this.selected().forEach(function(n){ n.selected(false); });
-		},
-		invertSelected : function(){
-			this.nodes().forEach(function(n){ $(n.element).is(":visible") && n.selected(!n.selected()); });
-		},
 		insertNodeAfter : function( b, a ){
 			return Simplenote.Node($.extend(a,{listStyleType:b.listStyleType(),parent:b.parent(),smplnt:this,after:b}));
-		},			
+		},
+		selection : {
+			remove: function(){
+				var self = this;
+				Simplenote.confirm("Really delete all selected outline nodes?",function(a){
+					if (!a) return;
+					self.nodes.removeAll(self.selected());
+					self.save();
+				});
+			},
+			unselect : function(){
+				this.selected().forEach(function(n){ n.selected(false); });
+			},
+			invert : function(){
+				this.nodes().forEach(function(n){ $(n.element).is(":visible") && n.selected(!n.selected()); });
+			},
+			archive : function(){
+			
+			},
+			editTags : function(){
+			
+			}
+		},
+		text : {
+			bold:function(){},
+			italic:function(){},
+			underline:function(){},
+			link:function(){},
+			embed:function(){}
+		},
 		hotkeys : notehotkeys,
 		toJSON : function(){
 			return {
@@ -180,6 +206,7 @@ var isPlainObject = jQuery.isPlainObject;
 			this.smplnt = o.smplnt;
 			this.smplnt.tags.push(this);
 			this.inFilter = _(function(){return ~self.smplnt.filter.tags().indexOf(self);});
+			this.count = _(function(){ return self.smplnt.nodes().filter(function(n){return ~n.tags().indexOf(self);}).length; });
 		},
 		toJSON : function(){
 			return {
@@ -207,8 +234,8 @@ var isPlainObject = jQuery.isPlainObject;
 			this.id				 	= o.id || uuid();
 			this.parent     	 	= _((o.parent&&o.parent.id)||o.parent);
 			if ( o.parent === null ) { this.smplnt.root = this }
-			this.title 			 	= (function(){ var a = _( o.title|| ""); return _({ read: function(){ return a() }, write: function(v){a( Simplenote.Node.parseHeadline(v) ); } }); }());
-			this.note 		 	 	= (function(){ var a = _( o.note || "" ); return _({ read: function(){ return a(); }, write: function(v){ a( Simplenote.Node.parseNote(v) ); } }); }());
+			this.title 			 	= (function(){ var a = _( o.title&&unescape(o.title)|| ""); return _({ read: function(){ return a() }, write: function(v){a( Simplenote.Node.parseHeadline(v) ); } }); }());
+			this.note 		 	 	= (function(){ var a = _( o.note&&unescape(o.note) || "" ); return _({ read: function(){ return a(); }, write: function(v){ a( Simplenote.Node.parseNote(v) ); } }); }());
 			this.tags 			 	= _(o.tags&&o.tags.map(function(n){return Simplenote.Tag.findByName(n.name||n,self.smplnt);})||[]);
 			this.deadline	     	= _(o.deadline&&new Date(o.deadline)||false);
 			this.files		 	 	= _(o.files||[]);
@@ -221,13 +248,13 @@ var isPlainObject = jQuery.isPlainObject;
 			this.activeNote			= _(false);
 			this.selected			= _(false);
 			this.isCurrent			= _(function(){ return self === self.smplnt.current(); });
-			this.children			= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id})});
-			this.display			= _(function(){ return (self.smplnt.filterFn()( self )||self.children().some(function(n){return n.display()==="block";}))?"block":"none"; });
+			this.children			= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id&&n.display()})});
+			this.display			= _(function(){ return self.smplnt.filterFn()( self )||self.children().some(function(n){return n.display()==="block";})});
 			this.hasNote		 	= _(function(){ return self.note().length; });
 			this.hasChildren		= _(function(){ return self.children().length; });
 			this.cssClass			= _(function(){ return self.listStyleType().concat("node").filter(Boolean).join(" "); });
 			this.bullet				= _(function(){ return ( self.hasNote() || self.hasChildren() ) && ( !self.expanded() && "&#9658;" || self.expanded() && "&#9660;" ) || "&#9679;"; });
-			this.deadlineDisplay 	= _(function(){ time(); var d = self.deadline(); return d?(d>new Date?moment(d).calendar():self.alarm()):"";});
+			this.deadlineDisplay 	= _(function(){ time(); var d = self.deadline(); return d?(d>new Date?moment(d).fromNow():self.alarm()):"";});
 			this.showEllipsis    	= _(function(){ return self.hasNote() && !self.expanded(); });
 		
 			if ( o.after ){
@@ -242,6 +269,15 @@ var isPlainObject = jQuery.isPlainObject;
 			Simplenote.alert( this.title() );
 			return"";
 		},
+		editListStyleType : function(n,e){
+			var self = this;
+			$("#listStyleTypeMenu")
+				.trigger("position", e.target )
+				.on("menuselect",function(e,ui){
+					if ( !ui || !ui.item ) return;
+					self.andSiblings().forEach(function(n){n.listStyleType( ui.item.value )});
+				});
+		},
 		editTags : function(n,e){
 			var self = this;
 			$("#tagsMenu")
@@ -252,7 +288,7 @@ var isPlainObject = jQuery.isPlainObject;
 				});
 		},
 		editDeadline : function(){
-			this.self.deadline(Date.parse(prompt("enter deadline", this.deadline())));
+			this.deadline(Date.parse(prompt("enter deadline", this.deadline())));
 		},
 		editFiles : function(){
 			alert("coming soon")
@@ -272,13 +308,19 @@ var isPlainObject = jQuery.isPlainObject;
 		remove : function(){
 			confirm("really delete this node?") && this.smplnt.nodes.remove( this );
 		},
+		siblings : function(){
+			return Simplenote.Node.findSiblingsOf( this );
+		},
+		andSiblings : function(){
+			return this.siblings().concat(this);
+		},
 		toJSON : function(){
 			return {
 				id 			: this.id,
 				//pos			: this.pos(),
 				parent		: this.parent(),
-				title 		: this.active() && $(this.element).find(".title").html() || this.title(),
-				note 		: this.activeNote() && $(this.element).find(".notes").html() || this.note(),
+				title 		: escape( this.active() && $(this.element).find(".title").html() || this.title() ),
+				note 		: escape( this.activeNote() && $(this.element).find(".notes").html() || this.note() ),
 				expanded	: this.expanded(),
 				done 		: this.done(),
 				deadline	: this.deadline(),
@@ -292,21 +334,19 @@ var isPlainObject = jQuery.isPlainObject;
 	},{
 		// static methods
 		parseHeadline : function(a){
-			return a
-				.replace(/<a[^>]*>|<\/a>/g,"").replace(/(http\:\/\/)?(www\.[\w.]+)/ig,function(m){return "<a href=\""+(m.match(/http/i)?m:"http://"+m)+"\">"+m+"</a>"}) // links
-				.replace(/<b>|<\/b>/g,"").replace(/\*[\w‰ˆ¸ƒ÷‹ﬂ\s]+\*/ig,function(m){return "<b>"+m+"</b>"}) // bold
-				.replace(/<u>|<\/u>/g,"").replace(/\_[\w‰ˆ¸ƒ÷‹ﬂ\s]+\_/ig,function(m){return "<u>"+m+"</u>"}) // underline
-				.replace(/<i>|<\/i>/g,"").replace(/\/[\w‰ˆ¸ƒ÷‹ﬂ\s]+\//ig,function(m){return "<i>"+m+"</i>"}) // italics
-				.replace(/<br>$|<br\/>$/,"")
+			return a.replace(/<br>$|<br\/>$/,"")
 		},
 		parseNote : function(a){
-			return Simplenote.Node.parseHeadline(a);
+			return a;//Simplenote.Node.parseHeadline(a);
 		},
 		parsePaste : function(a){
 			
 		},
 		findById : function(id,s,a){
 			a=s.nodes().filter(function(n){return n.id===id;}); return a&&a[0]||0[0];
+		},
+		findSiblingsOf: function( a,b ){
+			return b=a.parent(), a.smplnt.nodes().filter(function(n){return n.parent()===b&&a!==n;});
 		}
 	});	
 	

@@ -19,7 +19,7 @@ jQuery.extend(true,ko.bindingHandlers,{
 				timer = null,
 				hide = function(){ timer = setTimeout(function(){ $(el).hide("fast",function(){$(el).css({top:0,left:0});}).trigger("release"); }, 250);},
 				where = null;
-			el.on( "click.menu", selector, function(e){ el.trigger("menuselect", { item: ko.dataFor( this ) } ); })
+			el.on( "click.menu", selector, function(e){ el.trigger("menuselect", { item: ko.dataFor( this ) } ); el.hide(); })
 				.on( "mouseout", hide )
 				.on( "mousein, mouseover", function(){ setTimeout(function(){clearTimeout(timer);},1); } )
 				.on( "position", function( e, t ){ where = $(t); $(el).position({ my:"right top", at:"right bottom", of: where}).show("fast");where.on("mouseout.menu",hide);})
