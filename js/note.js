@@ -22,8 +22,9 @@ var isPlainObject = jQuery.isPlainObject;
 					compare : _(""),
 					withDate : _(0)
 				},
-				title : _("")
+				title : _(""),
 			};
+			this.filter.inactive = _(function(){ return !(self.filter.tags().length||self.filter.date.compare().length||self.filter.title().length);})
 			this.filterFn = _(function(){
 				return function(node){
 					var t = self.filter.tags(), T = node.tags(), c = self.filter.date.compare(), d = self.filter.date.withDate(), D = node.deadline(), s = self.filter.title(), r = s && new RegExp( s, "i" );
@@ -93,9 +94,9 @@ var isPlainObject = jQuery.isPlainObject;
 			b.forEach(function(n){n.parent(c.id);});
 		},
 		save : function(){
-			var self = this;
-			clearTimeout( this.timeout );
-			this.timeout = setTimeout( function(){ localStorage.notes = JSON.stringify( self.toJSON() ); }, 100 );
+			var self = (this instanceof Simplenote)?this:ko.contextFor(this).$root;
+			clearTimeout( self.timeout );
+			self.timeout = setTimeout( function(){ localStorage.notes = JSON.stringify( self.toJSON() ); }, 100 );
 		},
 		startPeriodicalSave : function(){
 			var self = this;
@@ -243,12 +244,17 @@ var isPlainObject = jQuery.isPlainObject;
 			this.done		 	 	= _(o.done||false);
 			this.expanded			= _(o.expanded||false);
 			this.listStyleType		= _(o.listStyleType||[]);
+			this.pos				= _(o.pos||0);
 			this.editingTitle    	= _(false);
 			this.active				= _(true);
 			this.activeNote			= _(false);
 			this.selected			= _(false);
 			this.isCurrent			= _(function(){ return self === self.smplnt.current(); });
-			this.children			= _(function(){ return self.smplnt.nodes().filter(function(n){return n.parent()===self.id&&n.display()})});
+			this.childrenComp		= _(function(){ return self.smplnt.nodes.filter("parent",self.id).sort(function(a,b){return a.pos()-b.pos();});}).extend({throttle:10});
+			this.childrenVis		= _(function(){ return self.childrenComp().filter(function(n){return n.display();}); });
+			this.children			= _([]);
+			this.childrenVis.subscribe(function(v){self.children(v);});
+			this.children.subscribe(function(v){v.forEach(function(n,i){ n.pos(i);n.parent(self.id);});});
 			this.display			= _(function(){ return self.smplnt.filterFn()( self )||self.children().some(function(n){return n.display()==="block";})});
 			this.hasNote		 	= _(function(){ return self.note().length; });
 			this.hasChildren		= _(function(){ return self.children().length; });
@@ -317,7 +323,7 @@ var isPlainObject = jQuery.isPlainObject;
 		toJSON : function(){
 			return {
 				id 			: this.id,
-				//pos			: this.pos(),
+				pos			: this.pos(),
 				parent		: this.parent(),
 				title 		: escape( this.active() && $(this.element).find(".title").html() || this.title() ),
 				note 		: escape( this.activeNote() && $(this.element).find(".notes").html() || this.note() ),
@@ -350,7 +356,7 @@ var isPlainObject = jQuery.isPlainObject;
 		}
 	});	
 	
-}(function(v){return v&&((v.call||v.read||v.read||v.write)&&ko.computed(v)||v.map&&ko.observableArray(v))||ko.observable(v)},(function(){ var a = ko.observable(0); setInterval(function(){a(new Date());},1e3); return a; }()),a=(function(c,b,e){c=[],b=function(a){return a?(a^Math.random()*16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,b)};return function(){while(~c.indexOf(e=b()));return c.push(e),e}}())
+}(function(v,t){return v&&((v.call||v.read||v.read||v.write)&&ko.computed(v)||v.map&&ko.observableArray(v,t||this))||ko.observable(v)},(function(){ var a = ko.observable(0); setInterval(function(){a(new Date());},1e3); return a; }()),a=(function(c,b,e){c=[],b=function(a){return a?(a^Math.random()*16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,b)};return function(){while(~c.indexOf(e=b()));return c.push(e),e}}())
 ));
 
 // Get the party started

@@ -1,4 +1,4 @@
-/*
+ /*
  * creating standartized objects
  */
 
@@ -10,7 +10,7 @@ function Obj(a,b,c){
 /* 
  * extend knockout
  */
-jQuery.extend(true,ko.bindingHandlers,{
+jQuery.extend(true,ko.bindingHandlers, {
 	menu : {
 		init : function( el, acc ){
 			var el = $(el),
@@ -34,24 +34,54 @@ jQuery.extend(true,ko.bindingHandlers,{
 	},
 	editable : {
 		init : function( el, acc ){
+      console.log(el,acc())
 			$(el).attr("contenteditable",true).html(acc()()).blur(function(){acc()($(el).html().replace(/&nbsp;$|^&nbsp;|^\s*|\s*$/g,""));}).focus(function(){$(el).html(acc()()||"");});
 			acc().subscribe(function(){$(el).html(acc()());});
 		},
+	}
+});
+jQuery.extend(true, ko.observableArray.fn, {
+	filter : function(a,b){
+		return this().filter(a.call?a:function(n){var x=(n[a].call?n[a]():n[a]);return b?(b.test?b.test(x):x===b):!!x;});
 	},
-	sortable : {
-		init: function( el, acc, all, obj, cntx ){
-			$( el ).sortable({
-				items : ".node",
-				handle: ".bullet",				
-				placeholder: "sortable-placeholder",
-				connectWith: ".children",
-				start : function( e, ui ){ ko.dataFor(ui.item[0]).expanded(false); },
-				stop : function(e, ui ){
-					return;
+	find : function(a,b){
+		return this.filter(a,b)[0]||{};
+	},
+	map : function(a){
+		a = [].slice.call(arguments);
+		return this().map(a[0].call?a[0]:function(n){var r={};if(!a[1])return(n[a[0]]&&n[a[0]].call)?n[a[0]]():n[a[0]];a.forEach(function(m){r[m]=(n[m]&&n[m].call)?n[m]():n[m];});return r;});
+	}
+});
+jQuery.extend(true, ko.extenders, {
+	pickFrom : function( target, options ){
+		var array = options.array, key = options.key;
+		var result = ko.computed({
+			read: target,
+			write : function( val ){
+				var curr = target(),
+					arr = array.call?array():array;
+				if ( ~arr.indexOf( val ) ) {
+					target( val );
+				} else {
+					var nv = array.filter(function(n){ return n[key] === val });
+					target( nv && nv[0] || null );
 				}
-			});
-		}
+			}
+		});
+		result(target());
+		return result;
 	},
+	parse : function ( target, fn ){
+		if ( typeof fn !== "function" ) { fn=function(a){return a;}; }
+		var res = ko.computed({
+			read : target,
+			write : function(val){
+				target( fn ( unescape( val ) ) );
+			}
+		});
+		res(target());
+		return res;
+	}
 });
 /*
  * extend jQuery's index function
